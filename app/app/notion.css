@@ -94,3 +94,33 @@
 .ns-set section{flex:1;overflow:auto;padding:36px 56px 40px;position:relative}.ns-set .x{position:absolute;right:14px;top:12px;border:0;background:none;cursor:pointer;color:#9b9a97}.ns-set h2{font-size:20px;font-weight:600;margin:0;font-family:inherit}.ns-set .sub{margin:6px 0 24px;font-size:14px;color:#37352f}.ns-set h3{font-size:14px;font-weight:600;margin:30px 0 0;padding-bottom:10px;border-bottom:1px solid #efeeec;font-family:inherit}
 .ns-set .row{display:flex;justify-content:space-between;align-items:center;gap:30px;padding:14px 0 0}.ns-set .row b{display:block;font-weight:500;font-size:14px}.ns-set .row small{display:block;color:#787774;font-size:12px;margin-top:3px;max-width:380px;line-height:16px}.ns-set .sel{border:1px solid #e3e2e0;border-radius:6px;height:28px;padding:0 10px;display:flex;align-items:center;font-size:13px;white-space:nowrap;flex:none}.ns-set .tg{width:30px;height:18px;border-radius:9px;background:#e3e2e0;padding:2px;flex:none}.ns-set .tg i{display:block;width:14px;height:14px;border-radius:50%;background:#fff}.ns-set .tg.on{background:#2383e2}.ns-set .tg.on i{margin-left:12px}
 .ntn-slash{width:324px;border-radius:10px;padding:0;max-height:358px;border:1px solid #e9e8e6;box-shadow:0 8px 30px rgba(0,0,0,.14);display:flex;flex-direction:column}.ntn-slash button{padding:5px 8px;margin:0 6px;width:calc(100% - 12px);gap:8px;font-size:14px}.ntn-slash__glyph{width:22px;height:22px;border:0;background:none;font-size:12px;color:#5f5e5b}.ntn-slash small{display:none}
+
+/* inline database (table + board), geometry from the real app captures */
+.ntn-block--db{display:block;padding:0;margin:10px 0 6px}.ntn-block--db .ntn-handle{display:none}
+.ntn-db{width:100%;font-size:14px;color:#37352f}
+.ntn-db__head{display:flex;align-items:center;justify-content:space-between;height:42px;padding-right:8px}
+.ntn-db__title{border:0;outline:0;background:none;font-size:24px;font-weight:600;line-height:32px;font-family:inherit;color:#37352f;width:46%;padding:0;margin:0}.ntn-db__title::placeholder{color:#e1e0dd}
+.ntn-db__tools{display:flex;align-items:center;gap:0}.ntn-db__ic{width:28px;height:28px;border:0;background:none;border-radius:4px;color:#787774;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}.ntn-db__ic:hover,.ntn-db__ic.on{background:#efeeec}
+.ntn-db__new{display:inline-flex;margin-left:6px;height:28px;background:#2383e2;border-radius:6px;overflow:hidden}.ntn-db__new button{border:0;background:none;color:#fff;font-size:14px;font-weight:500;font-family:inherit;cursor:pointer;height:28px}.ntn-db__new button:first-child{width:45px}.ntn-db__new button:last-child{width:24px;border-left:1px solid rgba(255,255,255,.35);display:flex;align-items:center;justify-content:center}.ntn-db__new:hover{background:#0077d4}
+.ntn-db__menu{right:0;left:auto;top:32px;min-width:180px}.ntn-db__menu b{font-size:12px;color:#9b9a97;padding:4px 10px;font-weight:500}
+.ntn-db__table{margin-top:0;position:relative}
+.ntn-db__table .hdr,.ntn-db__table .row{display:flex;align-items:center;border-bottom:1px solid #ededeb;position:relative}
+.ntn-db__table .hdr{height:34px;color:#787774}.ntn-db__table .row{height:38px}
+.ntn-db__table .c1{width:280px;flex:none;display:flex;align-items:center;gap:8px;padding:0 8px;height:100%}.ntn-db__table .row .c1{border-right:1px solid #ededeb}.ntn-db__table .hdr .c1{gap:6px}.ntn-db__table .hdr .c1 b{font-size:12px;font-weight:600;letter-spacing:-.02em}
+.ntn-db__table .c2{flex:1;padding-left:11px;display:flex;align-items:center;gap:6px}.ntn-db__table .hdr .c2 span{font-size:17px;line-height:1;color:#9b9a97}
+.ntn-db__table .row input{flex:1;min-width:0;border:0;outline:0;background:none;font:inherit;color:#37352f;padding:0;height:100%}.ntn-db__table .row input::placeholder{color:#c4c3c0}.ntn-db__table .row .c1:focus-within{box-shadow:inset 0 0 0 2px #2383e2;background:#f1f7fe}
+.ntn-db__table .del{position:absolute;right:4px;top:50%;margin-top:-11px;width:22px;height:22px;border:0;background:none;color:#9b9a97;border-radius:4px;cursor:pointer;opacity:0;font-size:11px}.ntn-db__table .row:hover .del{opacity:1}.ntn-db__table .del:hover{background:#efeeec}
+.ntn-db__table .add{display:flex;align-items:center;gap:8px;width:100%;height:38px;border:0;border-bottom:0;background:none;padding:0 8px;color:#9b9a97;font:inherit;cursor:pointer;text-align:left}.ntn-db__table .add span{width:16px;text-align:center;font-size:16px}.ntn-db__table .add:hover{background:#f1f0ee}
+.ntn-db__board{display:flex;gap:12px;overflow-x:auto;padding:4px 0 16px;width:min(852px,50vw + 173px);max-width:none;align-items:flex-start;margin-top:4px}
+.ntn-bcol{flex:none;width:276px;border-radius:8px;padding:8px}
+.ntn-bcol header{display:flex;align-items:center;gap:8px;height:24px;margin-bottom:10px}.ntn-bcol .chip{display:inline-flex;align-items:center;gap:6px;height:24px;padding:0 8px 0 6px;border-radius:12px;font-size:14px;font-weight:400}.ntn-bcol .chip i{width:8px;height:8px;border-radius:50%;display:block}.ntn-bcol .cnt{font-size:14px}
+.ntn-bcard{position:relative;height:42px;margin-bottom:6px;background:#fff;border-radius:8px;box-shadow:0 0 0 1px rgba(55,53,47,.1),0 1px 2px rgba(15,15,15,.06);display:flex;align-items:center;padding:0 10px}.ntn-bcard input{flex:1;min-width:0;border:0;outline:0;background:none;font:inherit;color:#37352f;padding:0}.ntn-bcard input::placeholder{color:#c4c3c0}
+.ntn-bcard .acts{display:none;gap:2px}.ntn-bcard:hover .acts,.ntn-bcard:focus-within .acts{display:flex}.ntn-bcard .acts button{width:22px;height:22px;border:0;background:#f1f0ee;border-radius:4px;color:#787774;cursor:pointer;font-size:11px;padding:0}
+.ntn-bnew{display:flex;align-items:center;gap:6px;width:100%;height:42px;border:1px solid rgba(55,53,47,.1);background:rgba(255,255,255,.4);border-radius:8px;padding:0 12px;font:inherit;cursor:pointer;text-align:left}.ntn-bnew span{font-size:18px;line-height:1;width:16px}.ntn-bnew:hover{background:rgba(255,255,255,.8)}
+@media (max-width:860px){.ntn-db__board{width:100%}.ntn-db__table .c1{width:55%}}
+.ntn-icon.is-def{font-size:14px;line-height:28px;height:28px;padding:0 8px;margin:0 0 4px -2px;color:#9b9a97;opacity:0;transition:opacity .12s}.ntn-page:hover .ntn-icon.is-def,.ntn-icon.is-def:focus-visible{opacity:1}
+/* page header geometry from captures: title cap-top at y=165 with the top bar hidden, 708px content column */
+.ntn-page{width:100%;max-width:804px;padding:112px 48px 160px}
+.ntn-iconwrap{position:relative;height:0}.ntn-iconwrap .ntn-icon{position:absolute;left:-2px;bottom:8px}
+.ntn-title{height:48px;line-height:48px;padding:0;margin:0 0 6px}
+@media (max-width:860px){.ntn-page{padding:48px 20px 120px}}

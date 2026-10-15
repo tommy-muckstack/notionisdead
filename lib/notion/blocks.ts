@@ -1,6 +1,10 @@
 // Block model + markdown round-trip. Markdown is the interchange format (like Brainz notes): what you export is what you wrote.
-export type BlockType = "p" | "h1" | "h2" | "h3" | "bullet" | "number" | "todo" | "quote" | "code" | "divider" | "callout";
-export type Block = { id: string; type: BlockType; text: string; checked?: boolean; lang?: string };
+export type BlockType = "p" | "h1" | "h2" | "h3" | "bullet" | "number" | "todo" | "quote" | "code" | "divider" | "callout" | "table" | "board";
+export type DbStatus = "Not started" | "In progress" | "Done";
+export const DB_STATUSES: DbStatus[] = ["Not started", "In progress", "Done"];
+export type Db = { title: string; rows: { id: string; name: string; status: DbStatus }[] };
+export type Block = { id: string; type: BlockType; text: string; checked?: boolean; lang?: string; db?: Db };
+export const newDb = (): Db => ({ title: "", rows: [0, 1, 2].map(() => ({ id: bid(), name: "", status: "Not started" as DbStatus })) });
 let n = 0;
 export const bid = () => `b_${Date.now().toString(36)}${(n++).toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 export const mk = (type: BlockType, text = "", extra: Partial<Block> = {}): Block => ({ id: bid(), type, text, ...extra });
@@ -16,6 +20,8 @@ export const BLOCK_MENU: { type: BlockType; label: string; hint: string; keyword
   { type: "quote", label: "Quote", hint: "Capture a quote", keywords: "quote blockquote cite", prefix: ">" },
   { type: "code", label: "Code", hint: "A fenced code block", keywords: "code snippet pre fence", prefix: "```" },
   { type: "callout", label: "Callout", hint: "Make writing stand out", keywords: "callout note tip info" },
+  { type: "table", label: "Table view", hint: "Add a database as a table", keywords: "table view database inline" },
+  { type: "board", label: "Board view", hint: "Add a database as a kanban board", keywords: "board view database kanban inline" },
   { type: "divider", label: "Divider", hint: "Visually divide blocks", keywords: "divider hr line separator", prefix: "---" },
 ];
 export const filterMenu = (q: string) => { const s = q.trim().toLowerCase(); return BLOCK_MENU.filter(m => !s || m.label.toLowerCase().includes(s) || m.keywords.includes(s)); };
@@ -54,9 +60,10 @@ export const moveBlock = (blocks: Block[], id: string, dir: -1 | 1): Block[] => 
   const i = blocks.findIndex(b => b.id === id), j = i + dir; if (i < 0 || j < 0 || j >= blocks.length) return blocks;
   const c = [...blocks]; [c[i], c[j]] = [c[j], c[i]]; return c;
 };
-export const turnInto = (blocks: Block[], id: string, type: BlockType): Block[] => blocks.map(b => b.id === id ? { ...b, type, checked: type === "todo" ? !!b.checked : undefined, text: type === "divider" ? "" : b.text } : b);
+export const turnInto = (blocks: Block[], id: string, type: BlockType): Block[] => blocks.map(b => b.id === id ? { ...b, type, checked: type === "todo" ? !!b.checked : undefined, text: type === "divider" || type === "table" || type === "board" ? "" : b.text, db: type === "table" || type === "board" ? b.db ?? newDb() : undefined } : b);
 
 // ---- markdown ----
+const dbMarkdown = (db: Db | undefined, board: boolean) => { const rows = db?.rows ?? []; const head = db?.title ? `**${db.title}**\n\n` : ""; return head + ["| Name | Status |", "| --- | --- |", ...rows.map(r => `| ${r.name.replace(/\|/g, "\\|")} | ${r.status} |`)].join("\n") + (board ? "\n<!-- board -->" : ""); };
 export function blocksToMarkdown(blocks: Block[]): string {
   const out: string[] = []; let num = 0;
   blocks.forEach((b, i) => {
@@ -64,7 +71,7 @@ export function blocksToMarkdown(blocks: Block[]): string {
     const t = b.text;
     const line = b.type === "h1" ? `# ${t}` : b.type === "h2" ? `## ${t}` : b.type === "h3" ? `### ${t}` : b.type === "bullet" ? `- ${t}` : b.type === "number" ? `${num}. ${t}`
       : b.type === "todo" ? `- [${b.checked ? "x" : " "}] ${t}` : b.type === "quote" ? t.split("\n").map(l => `> ${l}`).join("\n") : b.type === "callout" ? t.split("\n").map((l, k) => (k === 0 ? `> 💡 ${l}` : `> ${l}`)).join("\n")
-      : b.type === "code" ? "```" + (b.lang ?? "") + "\n" + t + "\n```" : b.type === "divider" ? "---" : t;
+      : b.type === "code" ? "```" + (b.lang ?? "") + "\n" + t + "\n```" : b.type === "divider" ? "---" : b.type === "table" ? dbMarkdown(b.db, false) : b.type === "board" ? dbMarkdown(b.db, true) : t;
     out.push(line);
     const next = blocks[i + 1];
     const tight = next && ((b.type === "bullet" || b.type === "todo") && (next.type === "bullet" || next.type === "todo") || b.type === "number" && next.type === "number");
@@ -85,6 +92,13 @@ export function markdownToBlocks(md: string): Block[] {
     if ((m = l.match(/^\s*[-*+] (.*)$/))) { flush(); out.push(mk("bullet", m[1])); continue; }
     if ((m = l.match(/^\s*\d+[.)] (.*)$/))) { flush(); out.push(mk("number", m[1])); continue; }
     if (/^>/.test(l)) { flush(); const q: string[] = [l.replace(/^> ?/, "")]; while (i + 1 < lines.length && /^>/.test(lines[i + 1])) q.push(lines[++i].replace(/^> ?/, "")); const first = q[0]; if (/^(💡|ℹ️|⚠️)\s/u.test(first)) { q[0] = first.replace(/^\S+\s/u, ""); out.push(mk("callout", q.join("\n"))); } else out.push(mk("quote", q.join("\n"))); continue; }
+    if (/^\|\s*Name\s*\|\s*Status\s*\|\s*$/.test(l) && /^\|\s*-+\s*\|\s*-+\s*\|\s*$/.test(lines[i + 1] ?? "")) {
+      flush(); i += 2; const rows: Db["rows"] = [];
+      while (i < lines.length && /^\|.*\|\s*$/.test(lines[i])) { const cells = lines[i].trim().slice(1, -1).split(/(?<!\\)\|/).map(c => c.trim().replace(/\\\|/g, "|")); const st = (DB_STATUSES as string[]).includes(cells[1]) ? (cells[1] as DbStatus) : "Not started"; rows.push({ id: bid(), name: cells[0] ?? "", status: st }); i++; }
+      let board = false; if (/^<!-- board -->\s*$/.test(lines[i] ?? "")) { board = true; i++; } i--;
+      const prev = out[out.length - 1]; let title = ""; if (prev && prev.type === "p" && /^\*\*(.+)\*\*$/.test(prev.text)) { title = prev.text.slice(2, -2); out.pop(); }
+      out.push(mk(board ? "board" : "table", "", { db: { title, rows } })); continue;
+    }
     para.push(l);
   }
   flush(); return out;

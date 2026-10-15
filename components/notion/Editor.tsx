@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { BLOCK_MENU, applyShortcut, filterMenu, inlineTokens, markdownToBlocks, mergeUp, mk, moveBlock, numbering, splitBlock, turnInto, type Block, type BlockType } from "@/lib/notion/blocks";
+import { DatabaseBlock } from "./Database";
+import { BLOCK_MENU, applyShortcut, filterMenu, inlineTokens, markdownToBlocks, mergeUp, mk, moveBlock, newDb, numbering, splitBlock, turnInto, type Block, type BlockType } from "@/lib/notion/blocks";
 
 export function InlineText({ text, resolve, onPage }: { text: string; resolve: (title: string) => string | null; onPage: (id: string) => void }) {
   if (!text) return <span className="ntn-ph">{"\u200b"}</span>;
@@ -32,6 +33,7 @@ export function Editor({ blocks, onChange, resolve, onPage, autoFocusFirst }: { 
   const choose = (id: string, type: BlockType) => {
     setSlash(null);
     if (type === "divider") { const i = idx(id); const div = mk("divider"); const p = mk("p"); onChange([...blocks.slice(0, i), div, p, ...blocks.slice(i + 1)]); setPending({ id: p.id, caret: 0 }); return; }
+    if (type === "table" || type === "board") { const i = idx(id); const db = mk(type, "", { db: newDb() }); const p = mk("p"); onChange([...blocks.slice(0, i), db, p, ...blocks.slice(i + 1)]); setPending({ id: p.id, caret: 0 }); return; }
     onChange(blocks.map(b => b.id === id ? { ...b, type, text: "", checked: type === "todo" ? false : undefined, lang: undefined } : b)); setPending({ id, caret: 0 });
   };
   const insertMarkdown = (b: Block, md: string) => {
@@ -72,6 +74,7 @@ export function Editor({ blocks, onChange, resolve, onPage, autoFocusFirst }: { 
       const isFocus = focus === b.id;
       if (b.type === "divider") return <div key={b.id} className="ntn-block ntn-block--divider" data-testid="block" data-type="divider" tabIndex={0} ref={el => { if (el) refs.current.set(b.id, el); }}
         onFocus={() => setFocus(b.id)} onKeyDown={e => { if (e.key === "Backspace" || e.key === "Delete") { e.preventDefault(); onChange(blocks.filter(x => x.id !== b.id)); if (i > 0) focusAt(i - 1, true); } else if (e.key === "Enter") { e.preventDefault(); const p = mk("p"); onChange([...blocks.slice(0, i + 1), p, ...blocks.slice(i + 1)]); setPending({ id: p.id, caret: 0 }); } else if (e.key === "ArrowUp") focusAt(i - 1, true); else if (e.key === "ArrowDown") focusAt(i + 1, false); }}><hr /></div>;
+      if (b.type === "table" || b.type === "board") return <div key={b.id} className="ntn-block ntn-block--db" data-testid="block" data-type={b.type}><DatabaseBlock block={b} onChange={patch => set(b.id, patch)} onDelete={() => onChange(blocks.length > 1 ? blocks.filter(x => x.id !== b.id) : [mk("p")])} /></div>;
       return <div key={b.id} className={`ntn-block ntn-block--${b.type}` + (isFocus ? " is-focus" : "") + (b.type === "todo" && b.checked ? " is-done" : "")} data-testid="block" data-type={b.type}>
         <div className="ntn-handle"><button aria-label="Add block below" title="Add block below" onClick={() => { const p = mk("p"); onChange([...blocks.slice(0, i + 1), p, ...blocks.slice(i + 1)]); setPending({ id: p.id, caret: 0 }); }}>＋</button>
           <button aria-label="Block menu" title="Block menu" onClick={() => setMenuFor(menuFor === b.id ? null : b.id)}>⋮⋮</button>
@@ -96,6 +99,6 @@ export function Editor({ blocks, onChange, resolve, onPage, autoFocusFirst }: { 
 function SlashMenu({ q, index, onPick, onHover }: { q: string; index: number; onPick: (t: BlockType) => void; onHover: (i: number) => void }) {
   const items = filterMenu(q);
   return <div className="ntn-slash" role="listbox" aria-label="Insert block" data-testid="slash-menu">{items.length ? items.map((m, n) => <button key={m.type} role="option" aria-selected={n === index} className={n === index ? "on" : ""} onMouseEnter={() => onHover(n)} onMouseDown={e => { e.preventDefault(); onPick(m.type); }}>
-    <span className="ntn-slash__glyph">{m.type === "p" ? "Aa" : m.type === "h1" ? "H1" : m.type === "h2" ? "H2" : m.type === "h3" ? "H3" : m.type === "bullet" ? "•" : m.type === "number" ? "1." : m.type === "todo" ? "☑" : m.type === "quote" ? "❝" : m.type === "code" ? "</>" : m.type === "callout" ? "💡" : "—"}</span>
+    <span className="ntn-slash__glyph">{m.type === "p" ? "Aa" : m.type === "h1" ? "H1" : m.type === "h2" ? "H2" : m.type === "h3" ? "H3" : m.type === "bullet" ? "•" : m.type === "number" ? "1." : m.type === "todo" ? "☑" : m.type === "quote" ? "❝" : m.type === "code" ? "</>" : m.type === "callout" ? "💡" : m.type === "table" ? "▦" : m.type === "board" ? "▥" : "—"}</span>
     <span><b>{m.label}</b><small>{m.hint}</small></span></button>) : <div className="ntn-slash__none">No results</div>}</div>;
 }

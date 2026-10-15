@@ -64,3 +64,17 @@ describe("pages", () => {
   });
   it("updates stamp updatedAt", () => { const { ws, page } = createPage(emptyWorkspace(), { title: "x" }, new Date("2026-01-01T00:00:00Z")); expect(updatePage(ws, page.id, { title: "y" }, new Date("2026-02-01T00:00:00Z")).pages[0].updatedAt).toBe("2026-02-01T00:00:00.000Z"); });
 });
+
+describe("database blocks", () => {
+  it("round-trips a table through markdown", async () => {
+    const { blocksToMarkdown, markdownToBlocks, mk } = await import("@/lib/notion/blocks");
+    const b = mk("table", "", { db: { title: "Tasks", rows: [{ id: "a", name: "Write | pipe", status: "Done" }, { id: "b", name: "Ship", status: "In progress" }] } });
+    const back = markdownToBlocks(blocksToMarkdown([b]));
+    expect(back).toHaveLength(1); expect(back[0].type).toBe("table"); expect(back[0].db?.title).toBe("Tasks");
+    expect(back[0].db?.rows.map(r => [r.name, r.status])).toEqual([["Write | pipe", "Done"], ["Ship", "In progress"]]);
+  });
+  it("keeps the board layout marker", async () => {
+    const { blocksToMarkdown, markdownToBlocks, mk, newDb } = await import("@/lib/notion/blocks");
+    expect(markdownToBlocks(blocksToMarkdown([mk("board", "", { db: newDb() })]))[0].type).toBe("board");
+  });
+});
