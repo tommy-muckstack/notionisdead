@@ -2,7 +2,19 @@ import { blocksToMarkdown, markdownToBlocks, mk, bid, plainText, type Block } fr
 export type Comment = { id: string; author: string; text: string; at: string };
 /** A discussion: on the page (blockId null) or anchored to a block. */
 export type Thread = { id: string; blockId: string | null; messages: Comment[]; resolved: boolean; createdAt: string };
-export type Page = { id: string; title: string; icon: string; parentId: string | null; blocks: Block[]; favorite: boolean; trashed: boolean; createdAt: string; updatedAt: string; order: number; threads?: Thread[] };
+export type Snapshot = { at: string; title: string; blocks: Block[] };
+export type Published = { at: string; indexable: boolean; duplicable: boolean };
+export type Page = {
+  id: string; title: string; icon: string; parentId: string | null; blocks: Block[]; favorite: boolean; trashed: boolean; createdAt: string; updatedAt: string; order: number; threads?: Thread[];
+  /** cover: a gallery id (`g:<n>`), a URL or a data URL; coverY: vertical focus 0–100 */
+  cover?: string; coverY?: number;
+  font?: "default" | "serif" | "mono"; smallText?: boolean; fullWidth?: boolean; locked?: boolean;
+  /** Page history: snapshots of earlier states (newest last), capped. */
+  history?: Snapshot[];
+  /** Set while the page is published to the web (server copy keyed by the page id). */
+  published?: Published;
+};
+export const HISTORY_MAX = 20; export const HISTORY_GAP_MS = 10 * 60 * 1000;
 export type Workspace = { pages: Page[]; recent: string[] };
 let n = 0; export const pid = () => `pg_${Date.now().toString(36)}${(n++).toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 const iso = (d: Date) => d.toISOString();
@@ -18,8 +30,20 @@ export function createPage(ws: Workspace, input: { id?: string; title?: string; 
   const page: Page = { id: input.id ?? pid(), title: input.title ?? "", icon: input.icon ?? "📄", parentId: input.parentId ?? null, blocks: input.blocks ?? [mk("p")], favorite: false, trashed: false, createdAt: iso(now), updatedAt: iso(now), order: siblings.reduce((m, p) => Math.max(m, p.order + 1), 0) };
   return { ws: { ...ws, pages: [...ws.pages, page] }, page };
 }
-export const updatePage = (ws: Workspace, id: string, patch: Partial<Pick<Page, "title" | "icon" | "blocks" | "favorite">>, now = new Date()): Workspace =>
-  ({ ...ws, pages: ws.pages.map(p => p.id === id ? { ...p, ...patch, updatedAt: iso(now) } : p) });
+export type PagePatch = Partial<Omit<Page, "id" | "createdAt" | "updatedAt" | "order" | "parentId">>;
+/** Content edits (title/blocks) also feed page history: a snapshot of the previous state is kept when the last one is older than HISTORY_GAP_MS. */
+export function updatePage(ws: Workspace, id: string, patch: PagePatch, now = new Date()): Workspace {
+  return { ...ws, pages: ws.pages.map(p => {
+    if (p.id !== id) return p;
+    let history = p.history;
+    if ((patch.blocks !== undefined || patch.title !== undefined) && !patch.history) {
+      const last = p.history?.[p.history.length - 1];
+      if (!last || +now - +new Date(last.at) > HISTORY_GAP_MS) history = [...(p.history ?? []), { at: p.updatedAt, title: p.title, blocks: p.blocks }].slice(-HISTORY_MAX);
+    }
+    return { ...p, ...patch, history, updatedAt: iso(now) };
+  }) };
+}
+export const restoreSnapshot = (ws: Workspace, id: string, snap: Snapshot, now = new Date()): Workspace => updatePage(ws, id, { title: snap.title, blocks: snap.blocks.map(b => ({ ...b })) }, now);
 export const touchRecent = (ws: Workspace, id: string): Workspace => ({ ...ws, recent: [id, ...ws.recent.filter(x => x !== id)].slice(0, 8) });
 /** Move to trash, taking sub-pages with it. */
 export function trashPage(ws: Workspace, id: string): Workspace {
@@ -35,7 +59,7 @@ export const deleteForever = (ws: Workspace, id: string): Workspace => { const i
 export const emptyTrash = (ws: Workspace): Workspace => ({ ...ws, pages: ws.pages.filter(p => !p.trashed) });
 export function duplicatePage(ws: Workspace, id: string, now = new Date()): { ws: Workspace; page: Page } {
   const src = getPage(ws, id)!; const map = new Map<string, string>(); let cur = ws;
-  const copy = (p: Page, parentId: string | null, title: string): Page => { const r = createPage(cur, { title, parentId, icon: p.icon, blocks: p.blocks.map(b => ({ ...b, id: bid() })) }, now); cur = r.ws; map.set(p.id, r.page.id); return r.page; };
+  const copy = (p: Page, parentId: string | null, title: string): Page => { const r = createPage(cur, { title, parentId, icon: p.icon, blocks: p.blocks.map(b => ({ ...b, id: bid() })) }, now); cur = { ...r.ws, pages: r.ws.pages.map(x => x.id === r.page.id ? { ...x, cover: p.cover, coverY: p.coverY, font: p.font, smallText: p.smallText, fullWidth: p.fullWidth } : x) }; map.set(p.id, r.page.id); return { ...r.page }; };
   const root = copy(src, src.parentId, `${src.title || "Untitled"} (copy)`);
   const walk = (p: Page) => { for (const c of children(ws, p.id)) { copy(c, map.get(p.id)!, c.title); walk(c); } };
   walk(src); return { ws: cur, page: root };

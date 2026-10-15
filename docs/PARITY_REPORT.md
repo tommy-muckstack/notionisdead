@@ -40,14 +40,14 @@ Checked against notion.com/help on 2026-10-15 (no throwaway Notion account was c
 | 14 | @ mentions | **fixed** | 1 | `@` opens People (the signed-in user), Pages (filtered, inserts a `[[page]]` link with backlink) and Dates (Today/Tomorrow/Yesterday or a typed date). Rendered as chips. |
 | 15 | Block menu | **fixed** | 1 | ⋮⋮ menu: Turn into ›, Color › (text + background), Copy link to block, Duplicate (⌘D), Move to › (another page), Delete; Comment arrives in PR 3. Escape and click-away close it (shared `useDismiss` hook). The handle is draggable: drag-to-reorder with a drop indicator. |
 | 16 | Popover stacking | **fixed** | 2 | Workspace popovers (workspace menu, Share, page actions, icon picker) share one slot, so opening one replaces another; Escape and pointer-press outside close them (shared `Popwrap` + `useDismiss`). Search, Move to and Settings dialogs also close on Escape/click-away; the database view-settings menu and the editor block menu/toolbar use the same hook, so a block menu closes when Share opens and vice-versa. |
-| 17 | Icon / cover / comment | open | 4 | |
-| 18 | Page actions menu | open | 4 | |
-| 19 | Export options | open | 4 | |
-| 20 | Import | open | 4 | |
-| 21 | Share → Publish | open | 4 | |
-| 22 | Favorites | open | 4 | works today; polish only |
-| 23 | Nested pages | open | 4 | works today |
-| 24 | Trash popover | open | 4 | |
+| 17 | Icon / cover / comment | **fixed** | 4 | Hover row above the title: Add icon, **Add cover**, Add comment. Covers: gallery of 14 original gradients/colours, Upload (≤1.5 MB, browser-stored), Link; Change cover / Remove; **Reposition** by dragging, with Save/Cancel. Cover exports to HTML and shows on the public page. |
+| 18 | Page actions menu | **fixed** | 4 | ••• now: Style (Default / Serif / Mono), Small text, Full width, Lock page (read-only editor + unlock bar), Add to/Remove from Favorites, Copy link, Duplicate, Move to, Export, Import, Page history (snapshots every 10 min of editing, up to 20, with preview + Restore), Move to Trash, plus word count / last edited. Analytics is not offered (needs a server-side view log). |
+| 19 | Export options | **fixed** | 4 | Export dialog: Markdown & CSV / HTML / PDF; Include content (everything vs no files/images); PDF page format (Letter/A4) and scale; Include subpages (zip bundle via a store-only zip writer; databases also as CSV). PDF is text-only with built-in fonts (no emoji/non-Latin glyphs), stated in the dialog. |
+| 20 | Import | **partial** | 4, 6 | Import dialog from ••• → Import and Home → Import: Text & Markdown, HTML (converted via DOMParser), Plain text, CSV (lands as an inline table database; Name + Status columns). Word / Google Docs / Confluence rows explain how to export to a supported format; Evernote / Trello / Asana are labelled as needing their APIs (out of scope). The Settings → Import pane arrives with the Settings PR (6). |
+| 21 | Share → Publish | **fixed** | 4 | Publish tab switches. **Publish** stores a read-only copy on the server (`POST /api/publish`, Firestore in prod / files in dev) and serves it at `/p/<pageId>` with the same renderer as HTML export. After publishing: copy link, **Search engine indexing** (noindex unless on), **Duplicate as template** (adds a "Duplicate into your workspace" bar on the public page → `/app?dup=`), View site, Update site when the page changed since, **Unpublish** (→ 404). Only the owner session can update/unpublish. |
+| 22 | Favorites | **fixed** | 4 | Already worked; now also in the ••• menu (Add to / Remove from Favorites). |
+| 23 | Nested pages | **fixed** | 1, 4 | Already worked; `/page` creates sub-pages inline (PR 1) and exports include them as a folder tree (PR 4). |
+| 24 | Trash popover | **fixed** | 4 | Sidebar Trash opens a popover with search, Restore, Delete forever, Empty trash and a link to the full Trash page (kept at /app/trash). |
 | 25 | Database table | open | 5 | |
 | 26 | Database layouts | open | 5 | |
 | 27 | Templates | **fixed** | 3 | Home "Featured templates" cards and "Browse all" open a template gallery (Personal / Work / School, 9 original templates with a structure preview). "Use this template" creates a real page (Life Wiki also creates its sub-pages); templates use toggles, to-dos, inline databases and mentions. Content is original, written for NotionIsDead. |

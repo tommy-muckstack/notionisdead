@@ -19,6 +19,8 @@ export type EditorEnv = {
   /** Open comment threads per block id (badge) and how to show them. */
   comments?: Record<string, number>; onShowComments?: (blockId: string) => void;
   notify?: (msg: string) => void;
+  /** Locked page: render everything, edit nothing. */
+  readOnly?: boolean;
 };
 export const EditorCtx = createContext<EditorEnv>({ resolve: () => null, onPage: () => {}, pages: [], me: "You" });
 export const useEnv = () => useContext(EditorCtx);
