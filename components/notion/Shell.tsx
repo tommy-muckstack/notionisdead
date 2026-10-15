@@ -9,7 +9,8 @@ import { breadcrumb, children as kidsOf, createSpace, deleteSpace, getPage, live
 import { download } from "./PageChrome";
 
 const GH = "https://github.com/tommy-muckstack/notionisdead";
-export const SHORTCUTS: [string, string][] = [["⌘/Ctrl + K  or  ⌘/Ctrl + P", "Search or jump to a page"], ["⌘/Ctrl + N", "New page"], ["Enter in the title", "Move into the first block"], ["/", "Insert a block"], ["@", "Mention a person, page or date"], ["⌘/Ctrl + B / I / U / E", "Bold / italic / underline / code"], ["⌘/Ctrl + Shift + S", "Strikethrough"], ["⌘/Ctrl + K (with text selected)", "Add a link"], ["⌘/Ctrl + Shift + M", "Comment on the block"], ["⌘/Ctrl + D", "Duplicate the block"], ["⌘/Ctrl + Shift + ↑ / ↓", "Move the block"], ["Escape", "Close any menu or dialog"], ["# / ## / ### / ####  + space", "Headings"], ["- / 1. / []  + space", "Bulleted, numbered, to-do list"], ["> + space", "Toggle list"], ["\" + space", "Quote"], ["--- / ``` / $$", "Divider / code block / equation"]];
+import { SHORTCUTS } from "@/lib/notion/shortcuts";
+export { SHORTCUTS };
 
 /** Small anchored panel used by Help, Inbox, Set up and the out-of-scope stubs. */
 export function Pop({ title, onClose, children, className, wide }: { title?: string; onClose: () => void; children: React.ReactNode; className?: string; wide?: boolean }) {

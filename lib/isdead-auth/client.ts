@@ -49,3 +49,4 @@ export function authErrorMessage(e: any): string {
   if (c.includes("too-many-requests")) return "Too many attempts. Try again in a few minutes.";
   return e?.message ?? "Something went wrong.";
 }
+
