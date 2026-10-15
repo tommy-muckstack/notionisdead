@@ -6,15 +6,15 @@ Free, open-source Notion alternative. Part of the [IsDead series](https://yourap
 
 ## What works
 - **Pages:** nested page tree, icons, favorites, sub-pages, move-to, duplicate (deep), Trash with restore / delete forever / empty, breadcrumbs, recent pages, home screen.
-- **Block editor:** 11 block types (text, H1-3, bulleted/numbered lists, to-do, quote, callout, code, divider). Markdown shortcuts (`# `, `- `, `1. `, `[] `, `> `, ````, `---`), slash menu, Enter/Backspace list behaviour, ⌘⇧↑/↓ to move blocks, ⌘B/I/E on a selection, paste Markdown into blocks, block menu (turn into, duplicate, delete).
-- **Inline:** **bold**, *italic*, `code`, ~~strike~~, links, and [[page links]] with backlinks.
+- **Block editor:** 25 block types (text, H1-4, bulleted/numbered/toggle lists, to-do, quote, callout, code, divider, page, link to page, image, video, audio, file, web bookmark, equation, table of contents, columns, inline table/board databases). Markdown shortcuts (`# `, `- `, `1. `, `[] `, `> ` toggle, `" ` quote, ````, `---`, `$$`), grouped slash menu (anywhere in a line), floating formatting toolbar on selection (turn into, bold/italic/underline/strike/code, link, colour), `@` mentions (people, pages, dates), Enter/Backspace list behaviour, drag handle to reorder or ⌘⇧↑/↓, ⌘B/I/U/E/K and ⌘⇧S on a selection, ⌘D duplicate, paste Markdown into blocks, block menu (turn into, colour, copy link, duplicate, move to, delete).
+- **Inline:** **bold**, *italic*, underline, `code`, ~~strike~~, colours/highlights, links, @mentions and [[page links]] with backlinks.
 - **Search:** ⌘K across titles and body text, with create-from-search.
 - **Markdown:** export any page, import a .md file; the block↔Markdown round trip is covered by a golden corpus in the tests.
-- 36 unit tests; `npm run shots` runs a Playwright editor smoke test.
+- 43 unit tests; `npm run shots` runs a Playwright editor smoke test; `BASE=http://localhost:3000/notionisdead node scripts/e2e-editor.mjs` drives the editor with real mouse/keyboard events.
 
 ## Known gaps
 - Data lives in the browser (localStorage, per user); no sharing, real-time collaboration or sync yet.
-- No databases/tables, images, embeds, drag-handle reordering by mouse (use ⌘⇧↑/↓ or the block menu), nested/indented lists, AI or comments.
+- Uploaded media lives in the browser as data URLs (1.5 MB cap per file); no nested/indented lists, AI or comments yet. See `docs/PARITY_REPORT.md` for the QA-driven parity status.
 - Brainz (Rust/GPUI) code isn't reusable on the web; only its design cues (slash menu, round-trip-clean Markdown) were used.
 - Notion's brand fonts are approximated with Host Grotesk.
 

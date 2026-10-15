@@ -1,0 +1,15 @@
+// Before/after screenshots for the parity PRs. BASE=<origin>/notionisdead TAG=before|after node scripts/qa-shots.mjs <scenario…>
+// Output: docs/qa/2026-10-15/<scenario>-<TAG>.png (committed, referenced from the PR bodies).
+import fs from "node:fs"; import { chromium } from "@playwright/test";
+const base = process.env.BASE ?? "http://localhost:3011/notionisdead"; const tag = process.env.TAG ?? "after"; const out = "docs/qa/2026-10-15"; fs.mkdirSync(out, { recursive: true });
+const want = process.argv.slice(2); const browser = await chromium.launch(); const ctx = await browser.newContext({ viewport: { width: 1280, height: 800 } }); const page = await ctx.newPage();
+const shot = (n) => page.screenshot({ path: `${out}/${n}-${tag}.png`, type: "jpeg", quality: 70 }).then(() => fs.renameSync(`${out}/${n}-${tag}.png`, `${out}/${n}-${tag}.jpg`));
+const newPage = async (title) => { await page.goto(base + "/app"); await page.getByTestId("home").waitFor(); await page.getByTestId("new-page").click(); await page.getByTestId("page").waitFor(); await page.getByLabel("Page title").fill(title); await page.keyboard.press("Enter"); };
+const S = {
+  async slash() { await newPage("Slash menu"); await page.locator('[data-testid="block"] textarea, .ntn-addrow').first().click(); await page.keyboard.type("/"); await page.getByTestId("slash-menu").waitFor(); await shot("11-slash"); },
+  async blockmenu() { await newPage("Block menu"); await page.keyboard.type("A block with a menu"); await page.keyboard.press("Escape"); const b = page.locator('[data-testid="block"]').first(); await b.hover(); await b.getByRole("button", { name: "Block menu" }).click(); await page.waitForTimeout(300); await shot("15-block-menu"); },
+  async toolbar() { await newPage("Format toolbar"); await page.keyboard.type("Select me with the mouse"); await page.keyboard.press("Escape"); await page.waitForTimeout(200); const v = page.locator('[data-testid="block"]').first().locator(".ntn-view, textarea").first(); const box = await v.boundingBox(); await page.mouse.move(box.x + 2, box.y + box.height / 2); await page.mouse.down(); await page.mouse.move(box.x + 90, box.y + box.height / 2, { steps: 6 }); await page.mouse.up(); await page.waitForTimeout(300); await shot("13-toolbar"); },
+  async mention() { await newPage("Mentions"); await page.keyboard.type("Ping @"); await page.waitForTimeout(300); await shot("14-mention"); },
+};
+for (const w of want) { if (!S[w]) { console.error("unknown scenario", w); continue; } try { await S[w](); console.log("shot", w); } catch (e) { console.error("scenario failed", w, String(e).split("\n")[0]); await shot(w + "-failed").catch(() => {}); } }
+await browser.close();

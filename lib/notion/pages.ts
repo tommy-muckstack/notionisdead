@@ -10,9 +10,9 @@ export const children = (ws: Workspace, parentId: string | null) => live(ws).fil
 export const descendants = (ws: Workspace, id: string): Page[] => ws.pages.filter(p => p.parentId === id).flatMap(c => [c, ...descendants(ws, c.id)]);
 export function breadcrumb(ws: Workspace, id: string): Page[] { const out: Page[] = []; let p = getPage(ws, id); const seen = new Set<string>(); while (p && !seen.has(p.id)) { seen.add(p.id); out.unshift(p); p = getPage(ws, p.parentId); } return out; }
 
-export function createPage(ws: Workspace, input: { title?: string; parentId?: string | null; icon?: string; blocks?: Block[] } = {}, now = new Date()): { ws: Workspace; page: Page } {
+export function createPage(ws: Workspace, input: { id?: string; title?: string; parentId?: string | null; icon?: string; blocks?: Block[] } = {}, now = new Date()): { ws: Workspace; page: Page } {
   const siblings = ws.pages.filter(p => p.parentId === (input.parentId ?? null));
-  const page: Page = { id: pid(), title: input.title ?? "", icon: input.icon ?? "📄", parentId: input.parentId ?? null, blocks: input.blocks ?? [mk("p")], favorite: false, trashed: false, createdAt: iso(now), updatedAt: iso(now), order: siblings.reduce((m, p) => Math.max(m, p.order + 1), 0) };
+  const page: Page = { id: input.id ?? pid(), title: input.title ?? "", icon: input.icon ?? "📄", parentId: input.parentId ?? null, blocks: input.blocks ?? [mk("p")], favorite: false, trashed: false, createdAt: iso(now), updatedAt: iso(now), order: siblings.reduce((m, p) => Math.max(m, p.order + 1), 0) };
   return { ws: { ...ws, pages: [...ws.pages, page] }, page };
 }
 export const updatePage = (ws: Workspace, id: string, patch: Partial<Pick<Page, "title" | "icon" | "blocks" | "favorite">>, now = new Date()): Workspace =>
