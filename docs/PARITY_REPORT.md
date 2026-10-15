@@ -1,0 +1,64 @@
+# Notion parity report
+
+Tracks the 31 findings from the hands-on QA pass of 2026-10-15 (NotionIsDead vs Notion Free). Each row is **fixed**, **partial** or a **justified exception**. "Verified" says how the real Notion behaviour was confirmed: `obs` = seen live by QA, `help` = Notion's public help centre (notion.com/help), `gk` = still general knowledge.
+
+Rules we hold to: recreated assets only, no Notion code/art, the disclaimer footer stays, no fake filler content, payment behaviour untouched.
+
+## Verification notes on the [gk] hypotheses
+
+Checked against notion.com/help on 2026-10-15 (no throwaway Notion account was created; the help centre documents every menu the findings describe):
+
+- Block handle menu: `Turn into`, `Color`, `Copy link to block`, `Duplicate`, `Move to`, `Delete`, `Comment` (plus Suggest edits / Ask AI / word count, which are out of scope). Matches #15.
+- Markdown shortcuts: `#`–`###` headings, `-`/`*`/`+` bullets, `[]` to-do, `1.` numbered, **`>` makes a toggle**, **`"` makes a quote**, `---` divider. The QA table listed `>` as quote; the clone now follows Notion. `` ``` `` is not a documented shortcut but Notion accepts it; kept.
+- Slash menu groups: Basic blocks (Text, Page, To-do list, Heading 1–3, Table, Bulleted/Numbered/Toggle list, Quote, Divider, Link to page, Callout), Database (Table/Board/Gallery/List/Calendar view), Media (Image, Video, Audio, File, Code, Web bookmark), Advanced (equation, button, breadcrumb, table of contents). The QA observed H4 live; it is included.
+- Formatting toolbar: ⌘B/I/U, ⌘⇧S strikethrough, ⌘E inline code, ⌘K link, comment ⌘⇧M, `/color` for block colour.
+- @ menu: people, pages (inserts a link + backlink) and dates (`today`, `tomorrow`, `yesterday`).
+- Search filters: `Title only`, `Created by`, `In`, `Date` (+ `Teamspace` on paid plans); opens with ⌘/Ctrl+P or ⌘/Ctrl+K.
+- Export: `PDF` (include content, page format, scale), `HTML`, `Markdown & CSV`, each with "include subpages" (PDF subpages paid-only). Lives under ••• → More → Export.
+- Import: Settings → Import; sources include Text & Markdown, HTML, CSV, Word, Google Docs, ZIP, plus third-party apps.
+- Publish tab: the button reads `Publish` (not "Publish to web"); after publishing: copy link, search-engine indexing, duplicate as template, embed, Unpublish.
+- Page ••• menu (help): Font (Default/Serif/Mono), Small text, Full width, Move to, Duplicate, Import, Export, Lock, Copy link, Page history.
+- Pricing: QA observed $10/$20 yearly vs $12/$24 monthly live; the marketing page copy was verified unchanged.
+
+## Findings
+
+| # | Finding | Status | PR | Notes |
+|---|---------|--------|----|-------|
+| 1 | Landing links dead | open | 7 | |
+| 2 | Pricing toggle | open | 7 | |
+| 3 | Login / signup | open | 7 | |
+| 4 | Forgot password | open | 7 | |
+| 5 | Sign out / sign in | open | 7 | |
+| 6 | Home starter pages, recents | open | 6 | |
+| 7 | Sidebar items dead | open | 6 | |
+| 8 | Search filters | open | 6 | |
+| 9 | Ctrl+P | open | 6 | |
+| 10 | Enter in title → body; first block vanishing | **fixed** | 1 | Enter or ↓ in the title focuses the first block synchronously (a block is created if the page starts with a database/divider). ↑ or Backspace on the empty first block returns to the title. An empty first block always shows its placeholder, so it can no longer "disappear". |
+| 11 | Slash menu | **fixed** | 1 | Grouped like Notion: Basic blocks (Text, Page, To-do, H1–H4, bulleted/numbered/toggle lists, Quote, Callout, Table, Divider, Link to page), Media (Image, Video, Audio, Code, File, Web bookmark), Database (Table view, Board view; more layouts in PR 5), Advanced (2 columns, Block equation, Table of contents). `/` works mid-line too. Markdown export/import covers every new block. |
+| 12 | Markdown shortcuts | **fixed** | 1 | Placeholders per type (code: "Write some code…"); `####` → H4, `> ` → toggle, `" ` → quote, `$$` → equation, following notion.com/help. |
+| 13 | Formatting toolbar | **fixed** | 1 | Drag-selecting rendered text keeps a visible native selection and shows a floating toolbar: Turn into, B/I/U/S/code, Link (inline URL field), text colour + background, Comment (wired in PR 3). Keyboard selections in the editing textarea get the same toolbar; ⌘B/I/U/E, ⌘⇧S, ⌘K work on selections. Underline is stored as `<u>`, colours as `<font color>` / `<mark class>` so Markdown round-trips. |
+| 14 | @ mentions | **fixed** | 1 | `@` opens People (the signed-in user), Pages (filtered, inserts a `[[page]]` link with backlink) and Dates (Today/Tomorrow/Yesterday or a typed date). Rendered as chips. |
+| 15 | Block menu | **fixed** | 1 | ⋮⋮ menu: Turn into ›, Color › (text + background), Copy link to block, Duplicate (⌘D), Move to › (another page), Delete; Comment arrives in PR 3. Escape and click-away close it (shared `useDismiss` hook). The handle is draggable: drag-to-reorder with a drop indicator. |
+| 16 | Popover stacking | open | 2 | |
+| 17 | Icon / cover / comment | open | 4 | |
+| 18 | Page actions menu | open | 4 | |
+| 19 | Export options | open | 4 | |
+| 20 | Import | open | 4 | |
+| 21 | Share → Publish | open | 4 | |
+| 22 | Favorites | open | 4 | works today; polish only |
+| 23 | Nested pages | open | 4 | works today |
+| 24 | Trash popover | open | 4 | |
+| 25 | Database table | open | 5 | |
+| 26 | Database layouts | open | 5 | |
+| 27 | Templates | open | 3 | |
+| 28 | Comments | open | 3 | |
+| 29 | Settings tabs | open | 6 | |
+| 30 | Workspace menu | open | 6 | |
+| 31 | 404 | open | 7 | |
+
+## Known limitations introduced by PR 1 (documented, not blocking)
+
+- Media uploads are stored as data URLs in the browser (per-user localStorage), capped at 1.5 MB per file; embeds by link have no limit. Notion stores files server-side.
+- Block equations render the TeX source in a monospace box (no KaTeX dependency).
+- Toggle and column contents are nested editors; arrow-key navigation does not cross the boundary (click inside instead). Blocks can't be dragged between the nested editor and the page yet.
+- `Move to` moves one block to the end of another page (Notion lets you pick a position).

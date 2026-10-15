@@ -12,6 +12,8 @@ import {
 } from "@/lib/notion/pages";
 import { seedWorkspace } from "@/lib/notion/seed";
 import { Editor } from "./Editor";
+import { EditorCtx, type EditorEnv } from "./editorEnv";
+import { pid } from "@/lib/notion/pages";
 
 const ICONS = ["📄", "📝", "📚", "🧭", "🗓️", "✅", "💡", "🎯", "🚀", "🧪", "🎨", "📌", "🏠", "💼", "📊", "🔖"];
 const download = (name: string, text: string) => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: "text/markdown" })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); };
@@ -22,7 +24,7 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
   const [stored, setStored, ready] = useLocal<WS | null>(uid, "ws", null);
   const [expanded, setExpanded] = useLocal<Record<string, boolean>>(uid, "expanded", {});
   const [searching, setSearching] = useState(false); const [toast, setToast] = useState(""); const [navOpen, setNavOpen] = useState(false); const [iconOpen, setIconOpen] = useState(false); const [moveOpen, setMoveOpen] = useState(false); const [menuOpen, setMenuOpen] = useState(false); const [shareOpen, setShareOpen] = useState(false); const [wsMenu, setWsMenu] = useState(false); const [settings, setSettings] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const fileRef = useRef<HTMLInputElement>(null); const titleRef = useRef<HTMLInputElement>(null); const [focusFirst, setFocusFirst] = useState(0);
   useEffect(() => { if (ready && !stored) setStored(demo ? seedWorkspace() : emptyWorkspace()); }, [ready, stored, demo, setStored]);
   const ws = stored;
   const notify = useCallback((m: string) => { setToast(m); setTimeout(() => setToast(t => (t === m ? "" : t)), 2400); }, []);
@@ -46,6 +48,13 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
       <button className="ntn-node__add" aria-label={`Add a page inside ${p.title || "Untitled"}`} title="Add a page inside" onClick={() => newPage(p.id)}>＋</button></div>
       {isOpen && <Tree parentId={p.id} depth={depth + 1} />}</div>; })}</>;
 
+  const env: EditorEnv = {
+    resolve, onPage: open, me: demo ? "Demo User" : (name || email.split("@")[0] || "You"), notify,
+    pages: live(ws).filter(p => p.id !== page?.id).map(p => ({ id: p.id, title: p.title, icon: p.icon })),
+    createSubpage: page ? title => { const id = pid(); commit(w => createPage(w, { id, title, parentId: page.id }).ws); setExpanded(e => ({ ...e, [page.id]: true })); return { id, title, icon: "📄" }; } : undefined,
+    moveBlockToPage: (b, pid) => commit(w => { const t = getPage(w, pid); return t ? updatePage(w, pid, { blocks: [...t.blocks.filter(x => !(x.type === "p" && !x.text && t.blocks.length === 1)), b] }) : w; }),
+    onFocusTitle: () => { const el = titleRef.current; if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } },
+  };
   const chooseMove = (id: string | null) => { if (!page) return; commit(w => movePage(w, page.id, id)); setMoveOpen(false); notify(id ? `Moved into ${getPage(ws, id)?.title || "Untitled"}` : "Moved to top level"); };
 
   return <div className="ntn" data-testid="notion-app">
@@ -95,9 +104,9 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
         {page && !page.trashed && <article className="ntn-page" key={page.id} data-testid="page">
           <div className="ntn-popwrap ntn-iconwrap"><button className={"ntn-icon" + (page.icon === "📄" ? " is-def" : "")} aria-label="Change icon" onClick={() => setIconOpen(o => !o)}>{page.icon === "📄" ? "☺ Add icon" : page.icon}</button>
             {iconOpen && <div className="ntn-menu ntn-icons" role="menu">{ICONS.map(i => <button key={i} role="menuitem" aria-label={`Icon ${i}`} onClick={() => { commit(w => updatePage(w, page.id, { icon: i })); setIconOpen(false); }}>{i}</button>)}</div>}</div>
-          <input className="ntn-title" aria-label="Page title" placeholder="Untitled" value={page.title} onChange={e => commit(w => updatePage(w, page.id, { title: e.target.value }))}
-            onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); (document.querySelector('[data-testid="block"] textarea, [data-testid="block"] .ntn-view') as HTMLElement | null)?.dispatchEvent(new MouseEvent("mousedown", { bubbles: true, cancelable: true })); } }} />
-          <Editor blocks={page.blocks} autoFocusFirst={!page.title} resolve={resolve} onPage={open} onChange={(b: Block[]) => commit(w => updatePage(w, page.id, { blocks: b.length ? b : [mk("p")] }))} />
+          <input ref={titleRef} className="ntn-title" aria-label="Page title" placeholder="Untitled" value={page.title} onChange={e => commit(w => updatePage(w, page.id, { title: e.target.value }))}
+            onKeyDown={e => { if (e.key === "Enter" || (e.key === "ArrowDown" && e.currentTarget.selectionStart === page.title.length)) { e.preventDefault(); setFocusFirst(n => n + 1); } }} />
+          <EditorCtx.Provider value={env}><Editor blocks={page.blocks} autoFocusFirst={!page.title} focusFirst={focusFirst} onChange={(b: Block[]) => commit(w => updatePage(w, page.id, { blocks: b.length ? b : [mk("p")] }))} /></EditorCtx.Provider>
           {children(ws, page.id).length > 0 && <section className="ntn-subpages" aria-label="Sub-pages">{children(ws, page.id).map(c => <Link key={c.id} href={`/app/${c.id}`} className="ntn-subpage">{c.icon} {c.title || "Untitled"}</Link>)}</section>}
           {backlinks(ws, page.id).length > 0 && <section className="ntn-backlinks" data-testid="backlinks"><h4>Linked from</h4>{backlinks(ws, page.id).map(b => <Link key={b.id} href={`/app/${b.id}`}>{b.icon} {b.title || "Untitled"}</Link>)}</section>}
         </article>}

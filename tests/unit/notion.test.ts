@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { applyShortcut, blocksToMarkdown, filterMenu, inlineTokens, markdownToBlocks, mk, moveBlock, numbering, splitBlock, turnInto } from "@/lib/notion/blocks";
+import { WRAP, applyShortcut, blocksToMarkdown, colorRange, filterMenu, inlineTokens, linkRange, markdownToBlocks, mentionText, mk, moveBlock, numbering, reorder, splitBlock, turnInto, wrapRange } from "@/lib/notion/blocks";
 import { backlinks, breadcrumb, children, createPage, deleteForever, duplicatePage, emptyWorkspace, findByTitle, importMarkdown, movePage, pageMarkdown, restorePage, searchPages, trashPage, updatePage } from "@/lib/notion/pages";
 import { seedWorkspace } from "@/lib/notion/seed";
 const strip = (bs: ReturnType<typeof markdownToBlocks>) => bs.map(({ id, ...r }) => r);
@@ -7,7 +7,7 @@ describe("markdown shortcuts", () => {
   it("# turns a paragraph into a heading by level", () => { expect(applyShortcut(mk("p", "## Hello"))).toMatchObject({ type: "h2", text: "Hello" }); expect(applyShortcut(mk("p", "#nospace"))).toBeNull(); });
   it("lists, todos, quotes", () => {
     expect(applyShortcut(mk("p", "- item"))).toMatchObject({ type: "bullet", text: "item" }); expect(applyShortcut(mk("p", "1. one"))).toMatchObject({ type: "number", text: "one" });
-    expect(applyShortcut(mk("p", "[] do it"))).toMatchObject({ type: "todo", checked: false }); expect(applyShortcut(mk("p", "[x] done"))).toMatchObject({ type: "todo", checked: true }); expect(applyShortcut(mk("p", "> wise"))).toMatchObject({ type: "quote", text: "wise" });
+    expect(applyShortcut(mk("p", "[] do it"))).toMatchObject({ type: "todo", checked: false }); expect(applyShortcut(mk("p", "[x] done"))).toMatchObject({ type: "todo", checked: true }); expect(applyShortcut(mk("p", "> wise"))).toMatchObject({ type: "toggle", text: "wise" }); expect(applyShortcut(mk("p", '" wise'))).toMatchObject({ type: "quote", text: "wise" }); expect(applyShortcut(mk("p", "#### four"))).toMatchObject({ type: "h4", text: "four" });
   });
   it("``` and --- convert only when typed alone", () => { expect(applyShortcut(mk("p", "```ts"))).toMatchObject({ type: "code", lang: "ts" }); expect(applyShortcut(mk("p", "---"))).toMatchObject({ type: "divider" }); expect(applyShortcut(mk("p", "--- more"))).toBeNull(); });
 });
@@ -17,12 +17,18 @@ describe("splitting", () => {
   it("headings continue as paragraphs", () => expect(splitBlock(mk("h1", "Title"), 5)[1].type).toBe("p"));
   it("numbered lists restart after a break", () => { const bs = [mk("number"), mk("number"), mk("p"), mk("number")]; const nums = numbering(bs); expect([nums[bs[0].id], nums[bs[1].id], nums[bs[3].id]]).toEqual([1, 2, 1]); });
   it("moves and converts blocks", () => { const bs = [mk("p", "a"), mk("p", "b")]; expect(moveBlock(bs, bs[1].id, -1).map(b => b.text)).toEqual(["b", "a"]); expect(moveBlock(bs, bs[0].id, -1)).toBe(bs); expect(turnInto(bs, bs[0].id, "todo")[0]).toMatchObject({ type: "todo", checked: false }); });
-  it("slash menu filters by label and keyword", () => { expect(filterMenu("head").map(m => m.type)).toEqual(["h1", "h2", "h3"]); expect(filterMenu("checkbox")[0].type).toBe("todo"); expect(filterMenu("").length).toBeGreaterThan(8); });
+  it("slash menu filters by label and keyword", () => { expect(filterMenu("head").map(m => m.type)).toEqual(["h1", "h2", "h3", "h4"]); expect(filterMenu("checkbox")[0].type).toBe("todo"); expect(filterMenu("").length).toBeGreaterThan(8); });
 });
 describe("markdown round trip", () => {
-  const corpus = ["# T\n\nPara one\nstill one\n\n## H2\n\n- a\n- b\n\n1. x\n2. y\n\n- [ ] open\n- [x] done\n\n> quote\n> more\n\n```ts\nconst a = 1;\n\nlet b;\n```\n\n---\n\nEnd with **bold** and [[Link]].\n",
+  const corpus = ["#### H4\n\n<details open>\n<summary>More</summary>\n\n- inside\n- two\n\n</details>\n\n<!-- columns -->\nleft\n\n<!-- column -->\n\nright\n\n<!-- /columns -->\n\n<!-- color:red bg:yellow -->\nColoured para\n\n📄 [[Child]]\n\n↗ [[Roadmap]]\n\n![cap](https://x.io/a.png)\n\n<video src=\"https://x.io/v.mp4\"></video>\n\n[📎 notes.pdf](https://x.io/n.pdf)\n\n[🔖 x.io](https://x.io)\n\n$$\nE = mc^2\n$$\n\n<!-- toc -->\n",
+    "# T\n\nPara one\nstill one\n\n## H2\n\n- a\n- b\n\n1. x\n2. y\n\n- [ ] open\n- [x] done\n\n> quote\n> more\n\n```ts\nconst a = 1;\n\nlet b;\n```\n\n---\n\nEnd with **bold** and [[Link]].\n",
     "Just a paragraph\n", "- [x] only\n", "1. one\n2. two\n3. three\n", "> 💡 callout text\n> second line\n"];
   for (const md of corpus) it(`round-trips ${JSON.stringify(md.slice(0, 18))}`, () => expect(blocksToMarkdown(markdownToBlocks(md))).toBe(md));
+  it("parses the new block kinds", () => {
+    const bs = markdownToBlocks("<details>\n<summary>T</summary>\n\ninner\n\n</details>\n\n<!-- color:blue -->\n- item\n\n![c](https://a.io/b.png)\n");
+    expect(bs.map(b => b.type)).toEqual(["toggle", "bullet", "image"]); expect(bs[0]).toMatchObject({ text: "T", open: false }); expect(bs[0].kids?.[0]).toMatchObject({ type: "p", text: "inner" }); expect(bs[1]).toMatchObject({ color: "blue" }); expect(bs[2]).toMatchObject({ url: "https://a.io/b.png", text: "c" });
+  });
+  it("reorders by drop index", () => { const bs = [mk("p", "a"), mk("p", "b"), mk("p", "c")]; expect(reorder(bs, bs[0].id, 3).map(b => b.text)).toEqual(["b", "c", "a"]); expect(reorder(bs, bs[2].id, 0).map(b => b.text)).toEqual(["c", "a", "b"]); expect(reorder(bs, bs[0].id, 1).map(b => b.text)).toEqual(["a", "b", "c"]); });
   it("parses to the expected block types", () => expect(markdownToBlocks("# a\n\n- b\n\n> c\n\n---\n").map(b => b.type)).toEqual(["h1", "bullet", "quote", "divider"]));
   it("is idempotent after one pass even for loose input", () => { const once = blocksToMarkdown(markdownToBlocks("* a\n* b\n\n\n\nText\n3) c")); expect(blocksToMarkdown(markdownToBlocks(once))).toBe(once); });
   it("keeps code blocks verbatim, including markdown-looking lines", () => { const bs = markdownToBlocks("```\n# not a heading\n- not a list\n```\n"); expect(strip(bs)).toEqual([{ type: "code", text: "# not a heading\n- not a list" }]); });
@@ -31,7 +37,20 @@ describe("inline", () => {
   it("tokenizes bold, italic, code, links and page links", () => {
     expect(inlineTokens("a **b** *c* `d` [e](https://x.io) [[F]] ~~g~~").map(t => t.t)).toEqual(["text", "bold", "text", "italic", "text", "code", "text", "link", "text", "page", "text", "strike"]);
   });
-  it("leaves unmatched markers alone", () => expect(inlineTokens("2 * 3 = 6")).toEqual([{ t: "text", text: "2 * 3 = 6" }]));
+  it("leaves unmatched markers alone", () => expect(inlineTokens("2 * 3 = 6")).toEqual([{ t: "text", text: "2 * 3 = 6", s: 0 }]));
+  it("tracks raw offsets, underline, colour, highlight and mentions", () => {
+    const t = inlineTokens("ab **cd** <u>e</u> <font color=\"red\">f</font> <mark class=\"yellow\">g</mark> @[Sam] @[2026-10-15]");
+    expect(t.map(x => [x.t, x.s])).toEqual([["text", 0], ["bold", 5], ["text", 9], ["underline", 13], ["text", 18], ["color", 37], ["text", 45], ["mark", 67], ["text", 75], ["mention", 78], ["text", 82], ["mention", 85]]);
+    expect(t[5]).toMatchObject({ color: "red" }); expect(t[7]).toMatchObject({ color: "yellow" });
+  });
+  it("wraps, toggles and links ranges", () => {
+    expect(wrapRange("hello world", 0, 5, WRAP.bold)).toEqual({ text: "**hello** world", a: 2, b: 7 });
+    expect(wrapRange("**hello** world", 2, 7, WRAP.bold)).toEqual({ text: "hello world", a: 0, b: 5 });
+    expect(wrapRange("x **y** z", 2, 7, WRAP.bold).text).toBe("x y z");
+    expect(linkRange("see docs now", 4, 8, "https://x.io")).toBe("see [docs](https://x.io) now");
+    expect(colorRange("a b c", 2, 3, "blue")).toBe('a <font color="blue">b</font> c'); expect(colorRange("a b c", 2, 3, "blue", true)).toBe('a <mark class="blue">b</mark> c');
+    expect(mentionText("page", "Roadmap")).toBe("[[Roadmap]]"); expect(mentionText("date", "2026-10-15")).toBe("@[2026-10-15]");
+  });
   it("only links http(s)", () => expect(inlineTokens("[x](javascript:alert(1))").every(t => t.t === "text")).toBe(true));
 });
 describe("pages", () => {
