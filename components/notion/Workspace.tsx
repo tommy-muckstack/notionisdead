@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { BP } from "@/lib/basepath";
 import { useLocal } from "@/lib/useLocal";
+import { useDismiss } from "@/lib/useDismiss";
 import { Logo } from "@/components/Logo";
 import { mk, type Block } from "@/lib/notion/blocks";
 import {
@@ -12,9 +13,11 @@ import {
 } from "@/lib/notion/pages";
 import { seedWorkspace } from "@/lib/notion/seed";
 import { Editor } from "./Editor";
+import { Popwrap } from "./Popwrap";
 import { EditorCtx, type EditorEnv } from "./editorEnv";
 import { pid } from "@/lib/notion/pages";
 
+type Pop = null | "ws" | "share" | "menu" | "icon";
 const ICONS = ["📄", "📝", "📚", "🧭", "🗓️", "✅", "💡", "🎯", "🚀", "🧪", "🎨", "📌", "🏠", "💼", "📊", "🔖"];
 const download = (name: string, text: string) => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: "text/markdown" })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); };
 const slug = (s: string) => (s || "untitled").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "untitled";
@@ -23,7 +26,9 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
   const router = useRouter();
   const [stored, setStored, ready] = useLocal<WS | null>(uid, "ws", null);
   const [expanded, setExpanded] = useLocal<Record<string, boolean>>(uid, "expanded", {});
-  const [searching, setSearching] = useState(false); const [toast, setToast] = useState(""); const [navOpen, setNavOpen] = useState(false); const [iconOpen, setIconOpen] = useState(false); const [moveOpen, setMoveOpen] = useState(false); const [menuOpen, setMenuOpen] = useState(false); const [shareOpen, setShareOpen] = useState(false); const [wsMenu, setWsMenu] = useState(false); const [settings, setSettings] = useState(false);
+  const [searching, setSearching] = useState(false); const [toast, setToast] = useState(""); const [navOpen, setNavOpen] = useState(false); const [moveOpen, setMoveOpen] = useState(false); const [settings, setSettings] = useState(false);
+  // One popover at a time (QA #16): a single slot; opening one replaces another, Escape/click-away clears it.
+  const [pop, setPop] = useState<Pop>(null); const toggle = (k: NonNullable<Pop>) => setPop(p => (p === k ? null : k)); const closePop = useCallback(() => setPop(null), []);
   const fileRef = useRef<HTMLInputElement>(null); const titleRef = useRef<HTMLInputElement>(null); const [focusFirst, setFocusFirst] = useState(0);
   useEffect(() => { if (ready && !stored) setStored(demo ? seedWorkspace() : emptyWorkspace()); }, [ready, stored, demo, setStored]);
   const ws = stored;
@@ -59,8 +64,8 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
 
   return <div className="ntn" data-testid="notion-app">
     <aside className={"ntn-side" + (navOpen ? " is-open" : "")}>
-      <div className="ns-ws" role="button" tabIndex={0} onClick={() => setWsMenu(o => !o)}><span className="ns-av">{(demo ? "D" : (name || email || "N")[0]).toUpperCase()}</span><b title={email}>{demo ? "Demo's Space" : `${(name || email.split("@")[0]).split(" ")[0]}'s Space`}</b><i>⌄</i></div>
-      {wsMenu && <div className="ns-wsmenu" onMouseLeave={() => setWsMenu(false)}><div className="hd"><span className="ns-av">{(demo ? "D" : (name || email || "N")[0]).toUpperCase()}</span><span><b>{demo ? "Demo's Space" : `${(name || email.split("@")[0]).split(" ")[0]}'s Space`}</b><small>Free Plan · 1 member</small></span></div><div className="bt"><button>Upgrade</button><button onClick={() => { setSettings(true); setWsMenu(false); }}>Settings</button><button>Invite members</button></div><hr /><small className="em">{email || "demo@yourappisdead.com"}</small><button className="sel">✓ {demo ? "Demo's Space" : "My Space"}</button><button>New workspace</button><hr /><form method="post" action={`${BP}/api/session/logout`}><button>Log out</button></form></div>}
+      <Popwrap open={pop === "ws"} onClose={closePop} className="ns-wswrap"><div className="ns-ws" role="button" tabIndex={0} aria-haspopup="menu" aria-expanded={pop === "ws"} onClick={() => toggle("ws")} onKeyDown={e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle("ws"); } }}><span className="ns-av">{(demo ? "D" : (name || email || "N")[0]).toUpperCase()}</span><b title={email}>{demo ? "Demo's Space" : `${(name || email.split("@")[0]).split(" ")[0]}'s Space`}</b><i>⌄</i></div>
+      {pop === "ws" && <div className="ns-wsmenu" role="menu"><div className="hd"><span className="ns-av">{(demo ? "D" : (name || email || "N")[0]).toUpperCase()}</span><span><b>{demo ? "Demo's Space" : `${(name || email.split("@")[0]).split(" ")[0]}'s Space`}</b><small>Free Plan · 1 member</small></span></div><div className="bt"><button>Upgrade</button><button onClick={() => { setSettings(true); closePop(); }}>Settings</button><button>Invite members</button></div><hr /><small className="em">{email || "demo@yourappisdead.com"}</small><button className="sel">✓ {demo ? "Demo's Space" : "My Space"}</button><button>New workspace</button><hr /><form method="post" action={`${BP}/api/session/logout`}><button>Log out</button></form></div>}</Popwrap>
       <div className="ns-tabs">
         <Link className={"ns-home" + (kind === "home" ? " on" : "")} href="/app" onClick={() => setNavOpen(false)}><svg width="16" height="16" viewBox="0 0 16 16"><path d="M2.5 7.2L8 2.6l5.5 4.6V13H10V9.5H6V13H2.5z" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg>Home</Link>
         <span className="ns-ic" title="Chat"><svg width="15" height="15" viewBox="0 0 16 16"><path d="M3 3h10v7H7l-3 3v-3H3z" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg></span>
@@ -86,15 +91,15 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
         <nav className="ntn-crumbs" aria-label="Breadcrumb">{page ? breadcrumb(ws, page.id).map((p, i, a) => <span key={p.id}>{i > 0 && <i>/</i>}<Link href={`/app/${p.id}`}>{p.icon} {p.title || "Untitled"}</Link></span>) : <span>{kind === "trash" ? "🗑️ Trash" : "Home"}</span>}</nav>
         {page && !page.trashed && <div className="ntn-top__actions">
           <span className="ntn-edited" title={`${wordCount(page)} words`}>Edited just now</span>
-          <div className="ntn-popwrap"><button className="ntn-sharebtn" aria-haspopup="dialog" aria-expanded={shareOpen} onClick={() => setShareOpen(o => !o)}>🔒︎ Share</button>{shareOpen && <SharePop name={demo ? "Demo User" : name} email={email} onClose={() => setShareOpen(false)} onCopy={() => { navigator.clipboard?.writeText(location.href); setShareOpen(false); notify("Link copied"); }} />}</div>
+          <Popwrap open={pop === "share"} onClose={closePop}><button className="ntn-sharebtn" aria-haspopup="dialog" aria-expanded={pop === "share"} onClick={() => toggle("share")}>🔒︎ Share</button>{pop === "share" && <SharePop name={demo ? "Demo User" : name} email={email} onClose={closePop} onCopy={() => { navigator.clipboard?.writeText(location.href); closePop(); notify("Link copied"); }} />}</Popwrap>
           <button className="iconbtn" aria-label="Copy link" onClick={() => { navigator.clipboard?.writeText(location.href); notify("Link copied"); }}>🔗︎</button>
           <button className="iconbtn" aria-pressed={page.favorite} aria-label={page.favorite ? "Remove from favorites" : "Add to favorites"} onClick={() => commit(w => toggleFavorite(w, page.id))}>{page.favorite ? "★" : "☆"}</button>
-          <div className="ntn-popwrap"><button className="iconbtn" aria-label="Page actions" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(o => !o)}>•••</button>
-            {menuOpen && <div className="ntn-menu ntn-menu--right" role="menu" onMouseLeave={() => setMenuOpen(false)}>
-              <button role="menuitem" onClick={() => { const r = duplicatePage(ws, page.id); setStored(r.ws); setMenuOpen(false); notify("Page duplicated"); open(r.page.id); }}>Duplicate</button>
-              <button role="menuitem" onClick={() => { setMoveOpen(true); setMenuOpen(false); }}>Move to…</button>
-              <button role="menuitem" onClick={() => { download(`${slug(page.title)}.md`, pageMarkdown(page)); setMenuOpen(false); notify("Exported Markdown"); }}>Export as Markdown</button>
-              <div className="ntn-menu__sep" /><button role="menuitem" className="is-danger" onClick={() => { commit(w => trashPage(w, page.id)); setMenuOpen(false); notify("Moved to Trash"); router.push("/app"); }}>Move to Trash</button></div>}</div></div>}
+          <Popwrap open={pop === "menu"} onClose={closePop}><button className="iconbtn" aria-label="Page actions" aria-haspopup="menu" aria-expanded={pop === "menu"} onClick={() => toggle("menu")}>•••</button>
+            {pop === "menu" && <div className="ntn-menu ntn-menu--right" role="menu">
+              <button role="menuitem" onClick={() => { const r = duplicatePage(ws, page.id); setStored(r.ws); closePop(); notify("Page duplicated"); open(r.page.id); }}>Duplicate</button>
+              <button role="menuitem" onClick={() => { setMoveOpen(true); closePop(); }}>Move to…</button>
+              <button role="menuitem" onClick={() => { download(`${slug(page.title)}.md`, pageMarkdown(page)); closePop(); notify("Exported Markdown"); }}>Export as Markdown</button>
+              <div className="ntn-menu__sep" /><button role="menuitem" className="is-danger" onClick={() => { commit(w => trashPage(w, page.id)); closePop(); notify("Moved to Trash"); router.push("/app"); }}>Move to Trash</button></div>}</Popwrap></div>}
       </header>
       <div className="ntn-scroll">
         {kind === "home" && <div className="ns-banner" role="note"><span>◌ Home is getting an update in our new sidebar redesign. Opt in to keep your pages, Notion AI, and meetings within reach.</span><a>Learn more</a><i>✕</i></div>}
@@ -102,8 +107,8 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
         {kind === "trash" && <Trash ws={ws} trashed={trashed} onRestore={id => { commit(w => restorePage(w, id)); notify("Restored"); }} onDelete={id => { commit(w => deleteForever(w, id)); notify("Deleted forever"); }} onEmpty={() => { commit(emptyTrash); notify("Trash emptied"); }} />}
         {missing && <div className="ntn-empty"><h2 className="ids-h2">This page isn't here</h2><p className="ids-muted">It may have been moved to the Trash.</p><Link className="ids-btn ids-btn--outline" href="/app">Back home</Link></div>}
         {page && !page.trashed && <article className="ntn-page" key={page.id} data-testid="page">
-          <div className="ntn-popwrap ntn-iconwrap"><button className={"ntn-icon" + (page.icon === "📄" ? " is-def" : "")} aria-label="Change icon" onClick={() => setIconOpen(o => !o)}>{page.icon === "📄" ? "☺ Add icon" : page.icon}</button>
-            {iconOpen && <div className="ntn-menu ntn-icons" role="menu">{ICONS.map(i => <button key={i} role="menuitem" aria-label={`Icon ${i}`} onClick={() => { commit(w => updatePage(w, page.id, { icon: i })); setIconOpen(false); }}>{i}</button>)}</div>}</div>
+          <Popwrap open={pop === "icon"} onClose={closePop} className="ntn-iconwrap"><button className={"ntn-icon" + (page.icon === "📄" ? " is-def" : "")} aria-label="Change icon" aria-haspopup="menu" aria-expanded={pop === "icon"} onClick={() => toggle("icon")}>{page.icon === "📄" ? "☺ Add icon" : page.icon}</button>
+            {pop === "icon" && <div className="ntn-menu ntn-icons" role="menu">{ICONS.map(i => <button key={i} role="menuitem" aria-label={`Icon ${i}`} onClick={() => { commit(w => updatePage(w, page.id, { icon: i })); closePop(); }}>{i}</button>)}</div>}</Popwrap>
           <input ref={titleRef} className="ntn-title" aria-label="Page title" placeholder="Untitled" value={page.title} onChange={e => commit(w => updatePage(w, page.id, { title: e.target.value }))}
             onKeyDown={e => { if (e.key === "Enter" || (e.key === "ArrowDown" && e.currentTarget.selectionStart === page.title.length)) { e.preventDefault(); setFocusFirst(n => n + 1); } }} />
           <EditorCtx.Provider value={env}><Editor blocks={page.blocks} autoFocusFirst={!page.title} focusFirst={focusFirst} onChange={(b: Block[]) => commit(w => updatePage(w, page.id, { blocks: b.length ? b : [mk("p")] }))} /></EditorCtx.Provider>
@@ -147,22 +152,22 @@ function Trash({ ws, trashed, onRestore, onDelete, onEmpty }: { ws: WS; trashed:
     {!trashed.length && <p className="ids-muted">Trash is empty.</p>}</div>;
 }
 function Search({ ws, onClose, onOpen, onCreate }: { ws: WS; onClose: () => void; onOpen: (id: string) => void; onCreate: (t: string) => void }) {
-  const [q, setQ] = useState(""); const [i, setI] = useState(0); const ref = useRef<HTMLInputElement>(null); useEffect(() => ref.current?.focus(), []);
+  const [q, setQ] = useState(""); const [i, setI] = useState(0); const ref = useRef<HTMLInputElement>(null); useEffect(() => ref.current?.focus(), []); const box = useRef<HTMLDivElement>(null); useDismiss(box, onClose);
   const hits = useMemo(() => q.trim() ? searchPages(ws, q) : ws.recent.map(id => getPage(ws, id)).filter((p): p is Page => !!p && !p.trashed).map(page => ({ page, snippet: "", where: "title" as const })), [ws, q]);
   const rows = [...hits.map(h => ({ key: h.page.id, label: `${h.page.icon} ${h.page.title || "Untitled"}`, sub: h.snippet, run: () => onOpen(h.page.id) })), ...(q.trim() ? [{ key: "new", label: `＋ Create page “${q.trim()}”`, sub: "", run: () => onCreate(q.trim()) }] : [])];
-  return <div className="ntn-overlay" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}><div className="ntn-search" role="dialog" aria-label="Search">
+  return <div className="ntn-overlay"><div ref={box} className="ntn-search" role="dialog" aria-label="Search">
     <input ref={ref} aria-label="Search pages" placeholder="Search or jump to…" value={q} onChange={e => { setQ(e.target.value); setI(0); }} onKeyDown={e => { if (e.key === "Escape") onClose(); else if (e.key === "ArrowDown") { e.preventDefault(); setI(x => Math.min(x + 1, rows.length - 1)); } else if (e.key === "ArrowUp") { e.preventDefault(); setI(x => Math.max(0, x - 1)); } else if (e.key === "Enter") { e.preventDefault(); rows[i]?.run(); } }} />
     <ul role="listbox">{!q.trim() && rows.length > 0 && <li className="ntn-search__h">Recent</li>}{rows.map((r, n) => <li key={r.key} role="option" aria-selected={n === i} className={n === i ? "on" : ""} onMouseEnter={() => setI(n)} onClick={r.run}><span>{r.label}</span>{r.sub && <small>{r.sub}</small>}</li>)}{!rows.length && <li className="ntn-search__h">Type to search your pages</li>}</ul></div></div>;
 }
 function MoveDialog({ ws, page, onPick, onClose }: { ws: WS; page: Page; onPick: (id: string | null) => void; onClose: () => void }) {
-  const bad = new Set([page.id, ...descendants(ws, page.id).map(d => d.id)]); const opts = live(ws).filter(p => !bad.has(p.id));
-  return <div className="ntn-overlay" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}><div className="ntn-search" role="dialog" aria-label="Move to" onKeyDown={e => e.key === "Escape" && onClose()}>
+  const box = useRef<HTMLDivElement>(null); useDismiss(box, onClose); const bad = new Set([page.id, ...descendants(ws, page.id).map(d => d.id)]); const opts = live(ws).filter(p => !bad.has(p.id));
+  return <div className="ntn-overlay"><div ref={box} className="ntn-search" role="dialog" aria-label="Move to">
     <div className="ntn-search__h" style={{ padding: "12px 16px" }}>Move “{page.title || "Untitled"}” to…</div>
     <ul><li role="option" aria-selected={false} onClick={() => onPick(null)}>🏠 Top level</li>{opts.map(p => <li key={p.id} role="option" aria-selected={false} onClick={() => onPick(p.id)}>{p.icon} {p.title || "Untitled"}</li>)}</ul></div></div>;
 }
 
 function SharePop({ name, email, onClose, onCopy }: { name: string; email: string; onClose: () => void; onCopy: () => void }) {
-  return <div className="ntn-sharepop" role="dialog" aria-label="Share" onKeyDown={e => e.key === "Escape" && onClose()}>
+  return <div className="ntn-sharepop" role="dialog" aria-label="Share">
     <div className="tabs"><b className="on">Share</b><b>Publish</b><a>Learn about sharing</a></div>
     <div className="inv"><input placeholder="Email or group, separated by commas" aria-label="Invite" /><button>Share</button></div>
     <div className="who"><span className="ns-av">{(name || "N")[0].toUpperCase()}</span><span><b>{name} (You)</b><small>{email}</small></span><em>Full access</em></div>
@@ -171,9 +176,10 @@ function SharePop({ name, email, onClose, onCopy }: { name: string; email: strin
 }
 const SET_NAV: [string, string[]][] = [["", ["Search settings"]], ["Account", ["Preferences", "Notifications", "Mail & Calendar"]], ["Workspace", ["General", "People", "Import"]], ["Features", ["Notion AI", "Meeting notes", "Connections", "Notion MCP", "Public pages", "Emoji", "Developer"]], ["Admin", ["Teamspaces"]], ["Access & billing", ["Upgrade plan"]]];
 function SettingsModal({ name, onClose }: { name: string; onClose: () => void }) {
+  const box = useRef<HTMLDivElement>(null); useDismiss(box, onClose);
   const Sel = ({ t }: { t: string }) => <span className="sel">{t} ⌄</span>; const Tg = ({ on }: { on?: boolean }) => <span className={"tg" + (on ? " on" : "")}><i /></span>;
   const Row = ({ t, d, c }: { t: string; d: string; c: React.ReactNode }) => <div className="row"><div><b>{t}</b><small>{d}</small></div>{c}</div>;
-  return <div className="ntn-overlay ns-ov" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}><div className="ns-set" role="dialog" aria-label="Settings" onKeyDown={e => e.key === "Escape" && onClose()}>
+  return <div className="ntn-overlay ns-ov"><div ref={box} className="ns-set" role="dialog" aria-label="Settings">
     <nav>{SET_NAV.map(([h, items]) => <div key={h}>{h && <h6>{h}</h6>}{items.map((i, n) => <a key={i} className={i === "Preferences" ? "on" : i === "Search settings" ? "ss" : ""}>{h === "Account" && n === 0 ? <span className="ns-av">{(name || "N")[0]}</span> : null}{h === "Account" && n === 0 ? name : i}</a>)}</div>)}</nav>
     <section><button className="x" onClick={onClose} aria-label="Close">✕</button>
       <h2>Preferences</h2><p className="sub">Choose how you want Notion to look and behave</p>

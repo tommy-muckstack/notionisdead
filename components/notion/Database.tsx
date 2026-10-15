@@ -1,5 +1,6 @@
 "use client";
 import { useState } from "react";
+import { Popwrap } from "./Popwrap";
 import { DB_STATUSES, bid, type Block, type Db, type DbStatus } from "@/lib/notion/blocks";
 
 const I = (d: string, extra?: React.ReactNode) => <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={d} />{extra}</svg>;
@@ -23,11 +24,11 @@ export function DatabaseBlock({ block, onChange, onDelete }: { block: Block; onC
     <div className="ntn-db__head">
       <input className="ntn-db__title" aria-label="Database title" placeholder="New database" value={db.title} onChange={e => setDb({ ...db, title: e.target.value })} />
       <div className="ntn-db__tools">{ICONS.map(([l, d, x]) => <button key={l} type="button" className="ntn-db__ic" aria-label={l} title={l}>{I(d, x)}</button>)}
-        <span className="ntn-popwrap"><button type="button" className={"ntn-db__ic" + (menu ? " on" : "")} aria-label="View settings" aria-haspopup="menu" aria-expanded={menu} title="Settings" onClick={() => setMenu(m => !m)}>{I("M2 5h8M12 5h2M2 11h2M6 11h8", <><circle cx="11" cy="5" r="1.300" /><circle cx="5" cy="11" r="1.300" /></>)}</button>
-          {menu && <div className="ntn-menu ntn-db__menu" role="menu" onMouseLeave={() => setMenu(false)}><b>Layout</b>
+        <Popwrap open={menu} onClose={() => setMenu(false)}><button type="button" className={"ntn-db__ic" + (menu ? " on" : "")} aria-label="View settings" aria-haspopup="menu" aria-expanded={menu} title="Settings" onClick={() => setMenu(m => !m)}>{I("M2 5h8M12 5h2M2 11h2M6 11h8", <><circle cx="11" cy="5" r="1.300" /><circle cx="5" cy="11" r="1.300" /></>)}</button>
+          {menu && <div className="ntn-menu ntn-db__menu" role="menu"><b>Layout</b>
             <button role="menuitemradio" aria-checked={!board} onClick={() => { onChange({ type: "table" }); setMenu(false); }}>{!board ? "✓ " : ""}Table</button>
             <button role="menuitemradio" aria-checked={board} onClick={() => { onChange({ type: "board" }); setMenu(false); }}>{board ? "✓ " : ""}Board</button>
-            <div className="ntn-menu__sep" /><button role="menuitem" className="is-danger" onClick={onDelete}>Delete database</button></div>}</span>
+            <div className="ntn-menu__sep" /><button role="menuitem" className="is-danger" onClick={onDelete}>Delete database</button></div>}</Popwrap>
         <span className="ntn-db__new"><button type="button" onClick={() => addRow()}>New</button><button type="button" aria-label="New options" onClick={() => addRow()}><svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="#fff" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M2.500 4.500L6 8l3.500-3.500" /></svg></button></span>
       </div>
     </div>
