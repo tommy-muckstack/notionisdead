@@ -50,18 +50,29 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
 
   return <div className="ntn" data-testid="notion-app">
     <aside className={"ntn-side" + (navOpen ? " is-open" : "")}>
-      <div className="ntn-side__top"><Link href="/app" style={{ color: "inherit", textDecoration: "none" }}><Logo size={22} /></Link><span className="ids-muted ntn-side__who" title={email}>{demo ? "Demo account" : name || email}</span></div>
-      <button className="ntn-navbtn" onClick={() => setSearching(true)} data-testid="open-search"><span>🔍 Search</span><kbd>⌘K</kbd></button>
-      <Link className={"ntn-navbtn" + (kind === "home" ? " on" : "")} href="/app" onClick={() => setNavOpen(false)}><span>🏠 Home</span></Link>
+      <div className="ns-ws"><span className="ns-av">{(demo ? "D" : (name || email || "N")[0]).toUpperCase()}</span><b title={email}>{demo ? "Demo's Space" : `${(name || email.split("@")[0]).split(" ")[0]}'s Space`}</b><i>⌄</i></div>
+      <div className="ns-tabs">
+        <Link className={"ns-home" + (kind === "home" ? " on" : "")} href="/app" onClick={() => setNavOpen(false)}><svg width="16" height="16" viewBox="0 0 16 16"><path d="M2.5 7.2L8 2.6l5.5 4.6V13H10V9.5H6V13H2.5z" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg>Home</Link>
+        <span className="ns-ic" title="Chat"><svg width="15" height="15" viewBox="0 0 16 16"><path d="M3 3h10v7H7l-3 3v-3H3z" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg></span>
+        <span className="ns-ic" title="Meetings"><svg width="15" height="15" viewBox="0 0 16 16"><rect x="3" y="2.5" width="10" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" /><path d="M5.5 6h5M5.5 8.5h5" stroke="currentColor" strokeWidth="1.2" /></svg></span>
+        <span className="ns-ic" title="Inbox"><svg width="15" height="15" viewBox="0 0 16 16"><path d="M2.5 9l1.5-5.5h8L13.5 9v4h-11zM2.5 9h3.5l.8 1.5h2.4L10 9h3.5" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg></span>
+        <button className="ns-ic ns-search" onClick={() => setSearching(true)} data-testid="open-search" aria-label="Search"><svg width="15" height="15" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.2" fill="none" stroke="currentColor" strokeWidth="1.3" /><path d="M10.2 10.2L13.5 13.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg></button>
+      </div>
+      <div className="ns-setup"><span>Set up your workspace</span><i><u /></i></div>
       {favs.length > 0 && <><div className="ntn-label">Favorites</div>{favs.map(p => <Link key={p.id} href={`/app/${p.id}`} className={"ntn-node__link ntn-fav" + (page?.id === p.id ? " on" : "")} onClick={() => setNavOpen(false)}><span>{p.icon}</span><span className="ntn-node__t">{p.title || "Untitled"}</span></Link>)}</>}
-      <div className="ntn-label">Pages<button className="ntn-label__add" aria-label="Add a page" onClick={() => newPage(null)}>＋</button></div>
+      <div className="ntn-label">Private<button className="ntn-label__add" aria-label="Add a page" onClick={() => newPage(null)}>＋</button></div>
       <nav aria-label="Pages" className="ntn-tree" data-testid="page-tree"><Tree parentId={null} depth={0} />{!tops.length && <p className="ids-muted" style={{ padding: "0 12px", fontSize: 13 }}>No pages yet.</p>}</nav>
-      <button className="ntn-navbtn ntn-newpage" onClick={() => newPage(null)} data-testid="new-page">＋ New page</button>
-      <Link className={"ntn-navbtn" + (kind === "trash" ? " on" : "")} href="/app/trash" onClick={() => setNavOpen(false)}><span>🗑️ Trash</span>{trashed.length > 0 && <em>{trashed.length}</em>}</Link>
-      <div className="ntn-side__foot"><form method="post" action={`${BP}/api/session/logout`}><button className="ids-btn ids-btn--ghost ids-btn--sm">Sign out</button></form></div>
+      <button className="ntn-navbtn ntn-newpage" onClick={() => newPage(null)} data-testid="new-page"><span>＋ Add new</span></button>
+      <div className="ns-gap" />
+      <span className="ntn-navbtn ns-row"><span>◎ Add agents</span></span>
+      <span className="ntn-navbtn ns-row"><span>▤ Try AI Meeting Notes</span></span>
+      <span className="ntn-navbtn ns-row"><span>▥ Library</span></span>
+      <span className="ntn-navbtn ns-row"><span>? Help</span></span>
+      <Link className={"ntn-navbtn" + (kind === "trash" ? " on" : "")} href="/app/trash" onClick={() => setNavOpen(false)}><span>🗑 Trash</span>{trashed.length > 0 && <em>{trashed.length}</em>}</Link>
+      <div className="ns-foot"><span className="ns-chat">New chat <kbd>Ctrl+O</kbd></span><span className="ns-fi" /><span className="ns-fi b" /><form method="post" action={`${BP}/api/session/logout`}><button className="ns-out" aria-label="Sign out" title="Sign out">⏻</button></form></div>
     </aside>
     <main className="ntn-main">
-      <header className="ntn-top"><button className="ntn-burger" aria-label="Open sidebar" onClick={() => setNavOpen(o => !o)}>☰</button>
+      <header className={"ntn-top" + (kind === "home" ? " is-home" : "")}><button className="ntn-burger" aria-label="Open sidebar" onClick={() => setNavOpen(o => !o)}>☰</button>
         <nav className="ntn-crumbs" aria-label="Breadcrumb">{page ? breadcrumb(ws, page.id).map((p, i, a) => <span key={p.id}>{i > 0 && <i>/</i>}<Link href={`/app/${p.id}`}>{p.icon} {p.title || "Untitled"}</Link></span>) : <span>{kind === "trash" ? "🗑️ Trash" : "Home"}</span>}</nav>
         {page && !page.trashed && <div className="ntn-top__actions">
           <span className="ids-muted" style={{ fontSize: 12 }}>{wordCount(page)} words</span>
@@ -74,6 +85,7 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
               <div className="ntn-menu__sep" /><button role="menuitem" className="is-danger" onClick={() => { commit(w => trashPage(w, page.id)); setMenuOpen(false); notify("Moved to Trash"); router.push("/app"); }}>Move to Trash</button></div>}</div></div>}
       </header>
       <div className="ntn-scroll">
+        {kind === "home" && <div className="ns-banner" role="note"><span>◌ Home is getting an update in our new sidebar redesign. Opt in to keep your pages, Notion AI, and meetings within reach.</span><a>Learn more</a><i>✕</i></div>}
         {kind === "home" && <Home ws={ws} name={demo ? "there" : (name || email.split("@")[0])} open={open} onNew={() => newPage(null)} onImport={() => fileRef.current?.click()} />}
         {kind === "trash" && <Trash ws={ws} trashed={trashed} onRestore={id => { commit(w => restorePage(w, id)); notify("Restored"); }} onDelete={id => { commit(w => deleteForever(w, id)); notify("Deleted forever"); }} onEmpty={() => { commit(emptyTrash); notify("Trash emptied"); }} />}
         {missing && <div className="ntn-empty"><h2 className="ids-h2">This page isn't here</h2><p className="ids-muted">It may have been moved to the Trash.</p><Link className="ids-btn ids-btn--outline" href="/app">Back home</Link></div>}
@@ -100,11 +112,19 @@ function Home({ ws, name, open, onNew, onImport }: { ws: WS; name: string; open:
   const recent = ws.recent.map(id => getPage(ws, id)).filter((p): p is Page => !!p && !p.trashed);
   const all = [...live(ws)].sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt)).slice(0, 12);
   const list = recent.length ? recent : all;
-  return <div className="ntn-home" data-testid="home"><h1 className="ids-h1" style={{ fontSize: 40 }}>{hello}, {name}</h1>
-    <div className="ntn-home__actions"><button className="ids-btn ids-btn--primary" onClick={onNew}>＋ New page</button><button className="ids-btn ids-btn--outline" onClick={onImport}>Import Markdown</button></div>
-    <h3 className="ntn-home__h">{recent.length ? "Recently visited" : "Your pages"}</h3>
-    <div className="ntn-cards">{list.map(p => <button key={p.id} className="ids-card ntn-pcard" onClick={() => open(p.id)}><span className="ntn-pcard__i">{p.icon}</span><b>{p.title || "Untitled"}</b><span className="ids-muted">{p.blocks.map(b => b.text).join(" ").slice(0, 90) || "Empty page"}</span></button>)}
-      {!list.length && <p className="ids-muted">Nothing here yet. Create your first page.</p>}</div></div>;
+  return <div className="ntn-home nh" data-testid="home"><h1>{hello}</h1>
+    <div className="nh-h">◷ Recently visited</div>
+    <div className="nh-rc">{list.slice(0, 4).map(p => <button key={p.id} className="nh-card" onClick={() => open(p.id)}><span className="cv" /><span className="ic">{p.icon}</span><b>{p.title || "Untitled"}</b><small>◷ {p.updatedAt ? "3h ago" : ""}</small></button>)}
+      <button className="nh-card nh-new" onClick={onNew}><span className="cv" /><span className="ic">⊞</span><b className="mu">New page</b></button></div>
+    <div className="nh-h">▤ Learn</div>
+    <div className="nh-lr">{[["What is a block?", "2m read"], ["Create your first page", "2m watch"], ["Create a subpage", "2m read"], ["Customize & style your content", "9m read"]].map(([t, m], i) => <div key={t} className="nh-lc"><span className={"cv c" + i} /><b>{t}</b><small>{m}</small></div>)}</div>
+    <div className="nh-h">▦ Upcoming events</div>
+    <div className="nh-ev"><div className="l"><i>▦</i><b>Connect AI Meeting Notes<br />with your Calendar events</b><p>Join calls, transcribe audio, and summarize meetings all in Notion.</p><a>Connect Notion Calendar</a></div>
+      <div className="r"><div><small>Today<br />Oct 15</small><span><b>Team standup</b><br />9 AM · Office</span></div><div><small>Fri<br />Oct 16</small><span><b>Project check-in</b><br />10 AM · Office</span></div></div></div>
+    <div className="nh-h">▥ Featured templates</div>
+    <div className="nh-lr">{[["Life Wiki"], ["Journal"], ["To-do List"], ["Simple Budget"]].map(([t]) => <div key={t} className="nh-tp"><b>{t}</b><small>By Notion</small></div>)}</div>
+    <div className="nh-act"><button className="ids-btn ids-btn--outline ids-btn--sm" onClick={onImport}>Import Markdown</button></div>
+  </div>;
 }
 function Trash({ ws, trashed, onRestore, onDelete, onEmpty }: { ws: WS; trashed: Page[]; onRestore: (id: string) => void; onDelete: (id: string) => void; onEmpty: () => void }) {
   return <div className="ntn-home" data-testid="trash"><h1 className="ids-h1" style={{ fontSize: 34 }}>Trash</h1>
