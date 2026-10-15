@@ -5,7 +5,7 @@ const GETTING_STARTED = `Welcome! This page is a real document: click any line a
 
 ## Try these
 - Type \`/\` on an empty line to pick a block type
-- Start a line with \`# \`, \`- \`, \`1. \`, \`[] \` or \`> \` to turn it into a heading, list, to-do or quote
+- Start a line with \`# \`, \`- \`, \`1. \`, \`[] \`, \`> \` or \`" \` to turn it into a heading, list, to-do, toggle or quote
 - Select text? Wrap it in **double stars** for bold, *single stars* for italic, \`backticks\` for code
 - Link to another page with [[Weekly planning]]
 - Move a block with ⌘⇧↑ / ⌘⇧↓, and search everything with ⌘K

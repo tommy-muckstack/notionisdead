@@ -11,10 +11,10 @@ Free, open-source Notion alternative. Part of the [IsDead series](https://yourap
 - **Inline:** **bold**, *italic*, underline, `code`, ~~strike~~, colours/highlights, links, @mentions and [[page links]] with backlinks.
 - **Search:** ⌘K / ⌘P across titles and body text with Title only / In / Date filters, recents, and create-from-search.
 - **Export / import / publish:** export as Markdown & CSV, HTML or PDF (with sub-pages as a zip); import Markdown, HTML, plain text or CSV; publish a read-only copy of a page to the web at `/p/<id>` (server-stored, unpublish any time). The block↔Markdown round trip is covered by a golden corpus in the tests.
-- 43 unit tests; `npm run shots` runs a Playwright editor smoke test; `BASE=http://localhost:3000/notionisdead node scripts/e2e-editor.mjs` drives the editor with real mouse/keyboard events.
+- 57 unit tests; `npm run shots` runs a Playwright smoke test on the production build; `BASE=http://localhost:3000/notionisdead node scripts/e2e-<suite>.mjs` (editor, popovers, comments, page-chrome, databases, shell, auth-marketing, hygiene) drives the app with real mouse/keyboard events against a running server.
 
 ## Known gaps
-- Data lives in the browser (localStorage, per user); no sharing, real-time collaboration or sync yet.
+- Data lives in the browser (localStorage, per user); no real-time collaboration or cross-device sync yet (publishing a page is the way to share it).
 - Uploaded media lives in the browser as data URLs (1.5 MB cap per file); no nested/indented lists, AI or comments yet. See `docs/PARITY_REPORT.md` for the QA-driven parity status.
 - Brainz (Rust/GPUI) code isn't reusable on the web; only its design cues (slash menu, round-trip-clean Markdown) were used.
 - Notion's brand fonts are approximated with Host Grotesk.

@@ -31,14 +31,14 @@ await withApp("notionisdead", async ({ base, browser }) => {
   await page.locator(".ntn-title").fill("Q4 milestones"); await page.keyboard.press("Enter"); await page.keyboard.type("Ship the editor"); await page.waitForTimeout(150);
   assert.match(await page.locator(".ntn-crumbs").innerText(), /Weekly planning.*Roadmap.*Q4 milestones/s);
   // favorite + export
-  await page.getByRole("button", { name: "Add to favorites" }).click(); await page.getByText("Q4 milestones").first().waitFor();
-  const dl = page.waitForEvent("download"); await page.getByRole("button", { name: "Page actions" }).click(); await page.getByRole("menuitem", { name: "Export as Markdown" }).click(); const f = await dl; await f.saveAs(`${dir}/export.md`);
+  await page.getByRole("button", { name: "Add to favorites" }).click(); await page.locator(".ntn-fav", { hasText: "Q4 milestones" }).waitFor();
+  await page.getByRole("button", { name: "Page actions", exact: true }).click(); await page.getByRole("menuitem", { name: "Export" }).click(); const dl = page.waitForEvent("download"); await page.getByRole("button", { name: "Export", exact: true }).click(); const f = await dl; await f.saveAs(`${dir}/export.md`);
   assert.match(fs.readFileSync(`${dir}/export.md`, "utf8"), /^# Q4 milestones\n\nShip the editor\n$/);
   // trash + restore
-  await page.getByRole("button", { name: "Page actions" }).click(); await page.getByRole("menuitem", { name: "Move to Trash" }).click(); await page.getByTestId("home").waitFor();
-  await page.getByRole("link", { name: /Trash/ }).click(); await page.getByTestId("trash-item").waitFor(); await page.getByRole("button", { name: "Restore" }).click(); await page.waitForFunction(() => !document.querySelector('[data-testid="trash-item"]'));
+  await page.getByRole("button", { name: "Page actions", exact: true }).click(); await page.getByRole("menuitem", { name: "Move to Trash" }).click(); await page.getByTestId("home").waitFor();
+  await page.getByRole("button", { name: /Trash/ }).click(); await page.getByTestId("trash-item").waitFor(); await page.getByRole("button", { name: /^Restore / }).click(); await page.waitForFunction(() => !document.querySelector('[data-testid="trash-item"]')); await page.keyboard.press("Escape");
   // import markdown
-  await page.getByRole("link", { name: "Home" }).click(); await page.setInputFiles('[data-testid="import-file"]', { name: "plan.md", mimeType: "text/markdown", buffer: Buffer.from("# Imported plan\n\n- one\n- two\n\n> note\n") });
+  await page.getByRole("link", { name: "Home" }).click(); await page.getByTestId("home").waitFor(); await page.setInputFiles('[data-testid="import-file"]', { name: "plan.md", mimeType: "text/markdown", buffer: Buffer.from("# Imported plan\n\n- one\n- two\n\n> note\n") });
   await page.waitForFunction(() => document.querySelector(".ntn-title")?.value === "Imported plan"); assert.equal(await page.locator('[data-testid="block"][data-type="bullet"]').count(), 2);
   // persistence
   await page.reload(); await page.waitForFunction(() => document.querySelector(".ntn-title")?.value === "Imported plan");
