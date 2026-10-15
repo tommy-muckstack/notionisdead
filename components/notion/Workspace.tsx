@@ -21,7 +21,7 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
   const router = useRouter();
   const [stored, setStored, ready] = useLocal<WS | null>(uid, "ws", null);
   const [expanded, setExpanded] = useLocal<Record<string, boolean>>(uid, "expanded", {});
-  const [searching, setSearching] = useState(false); const [toast, setToast] = useState(""); const [navOpen, setNavOpen] = useState(false); const [iconOpen, setIconOpen] = useState(false); const [moveOpen, setMoveOpen] = useState(false); const [menuOpen, setMenuOpen] = useState(false);
+  const [searching, setSearching] = useState(false); const [toast, setToast] = useState(""); const [navOpen, setNavOpen] = useState(false); const [iconOpen, setIconOpen] = useState(false); const [moveOpen, setMoveOpen] = useState(false); const [menuOpen, setMenuOpen] = useState(false); const [shareOpen, setShareOpen] = useState(false); const [wsMenu, setWsMenu] = useState(false); const [settings, setSettings] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
   useEffect(() => { if (ready && !stored) setStored(demo ? seedWorkspace() : emptyWorkspace()); }, [ready, stored, demo, setStored]);
   const ws = stored;
@@ -50,7 +50,8 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
 
   return <div className="ntn" data-testid="notion-app">
     <aside className={"ntn-side" + (navOpen ? " is-open" : "")}>
-      <div className="ns-ws"><span className="ns-av">{(demo ? "D" : (name || email || "N")[0]).toUpperCase()}</span><b title={email}>{demo ? "Demo's Space" : `${(name || email.split("@")[0]).split(" ")[0]}'s Space`}</b><i>⌄</i></div>
+      <div className="ns-ws" role="button" tabIndex={0} onClick={() => setWsMenu(o => !o)}><span className="ns-av">{(demo ? "D" : (name || email || "N")[0]).toUpperCase()}</span><b title={email}>{demo ? "Demo's Space" : `${(name || email.split("@")[0]).split(" ")[0]}'s Space`}</b><i>⌄</i></div>
+      {wsMenu && <div className="ns-wsmenu" onMouseLeave={() => setWsMenu(false)}><div className="hd"><span className="ns-av">{(demo ? "D" : (name || email || "N")[0]).toUpperCase()}</span><span><b>{demo ? "Demo's Space" : `${(name || email.split("@")[0]).split(" ")[0]}'s Space`}</b><small>Free Plan · 1 member</small></span></div><div className="bt"><button>Upgrade</button><button onClick={() => { setSettings(true); setWsMenu(false); }}>Settings</button><button>Invite members</button></div><hr /><small className="em">{email || "demo@yourappisdead.com"}</small><button className="sel">✓ {demo ? "Demo's Space" : "My Space"}</button><button>New workspace</button><hr /><form method="post" action={`${BP}/api/session/logout`}><button>Log out</button></form></div>}
       <div className="ns-tabs">
         <Link className={"ns-home" + (kind === "home" ? " on" : "")} href="/app" onClick={() => setNavOpen(false)}><svg width="16" height="16" viewBox="0 0 16 16"><path d="M2.5 7.2L8 2.6l5.5 4.6V13H10V9.5H6V13H2.5z" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg>Home</Link>
         <span className="ns-ic" title="Chat"><svg width="15" height="15" viewBox="0 0 16 16"><path d="M3 3h10v7H7l-3 3v-3H3z" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg></span>
@@ -75,7 +76,9 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
       <header className={"ntn-top" + (kind === "home" ? " is-home" : "")}><button className="ntn-burger" aria-label="Open sidebar" onClick={() => setNavOpen(o => !o)}>☰</button>
         <nav className="ntn-crumbs" aria-label="Breadcrumb">{page ? breadcrumb(ws, page.id).map((p, i, a) => <span key={p.id}>{i > 0 && <i>/</i>}<Link href={`/app/${p.id}`}>{p.icon} {p.title || "Untitled"}</Link></span>) : <span>{kind === "trash" ? "🗑️ Trash" : "Home"}</span>}</nav>
         {page && !page.trashed && <div className="ntn-top__actions">
-          <span className="ids-muted" style={{ fontSize: 12 }}>{wordCount(page)} words</span>
+          <span className="ntn-edited" title={`${wordCount(page)} words`}>Edited just now</span>
+          <div className="ntn-popwrap"><button className="ntn-sharebtn" aria-haspopup="dialog" aria-expanded={shareOpen} onClick={() => setShareOpen(o => !o)}>🔒︎ Share</button>{shareOpen && <SharePop name={demo ? "Demo User" : name} email={email} onClose={() => setShareOpen(false)} onCopy={() => { navigator.clipboard?.writeText(location.href); setShareOpen(false); notify("Link copied"); }} />}</div>
+          <button className="iconbtn" aria-label="Copy link" onClick={() => { navigator.clipboard?.writeText(location.href); notify("Link copied"); }}>🔗︎</button>
           <button className="iconbtn" aria-pressed={page.favorite} aria-label={page.favorite ? "Remove from favorites" : "Add to favorites"} onClick={() => commit(w => toggleFavorite(w, page.id))}>{page.favorite ? "★" : "☆"}</button>
           <div className="ntn-popwrap"><button className="iconbtn" aria-label="Page actions" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(o => !o)}>•••</button>
             {menuOpen && <div className="ntn-menu ntn-menu--right" role="menu" onMouseLeave={() => setMenuOpen(false)}>
@@ -102,6 +105,7 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
     </main>
     <input ref={fileRef} type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden data-testid="import-file" onChange={async e => { const f = e.target.files?.[0]; if (!f) return; const r = importMarkdown(ws, await f.text()); setStored(r.ws); notify(`Imported “${r.page.title}”`); open(r.page.id); e.target.value = ""; }} />
     {searching && <Search ws={ws} onClose={() => setSearching(false)} onOpen={id => { setSearching(false); open(id); }} onCreate={t => { setSearching(false); newPage(null, t); }} />}
+    {settings && <SettingsModal name={demo ? "Demo User" : name} onClose={() => setSettings(false)} />}
     {moveOpen && page && <MoveDialog ws={ws} page={page} onPick={chooseMove} onClose={() => setMoveOpen(false)} />}
     {toast && <div className="ntn-toast" role="status" data-testid="toast">{toast}</div>}
   </div>;
@@ -146,4 +150,28 @@ function MoveDialog({ ws, page, onPick, onClose }: { ws: WS; page: Page; onPick:
   return <div className="ntn-overlay" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}><div className="ntn-search" role="dialog" aria-label="Move to" onKeyDown={e => e.key === "Escape" && onClose()}>
     <div className="ntn-search__h" style={{ padding: "12px 16px" }}>Move “{page.title || "Untitled"}” to…</div>
     <ul><li role="option" aria-selected={false} onClick={() => onPick(null)}>🏠 Top level</li>{opts.map(p => <li key={p.id} role="option" aria-selected={false} onClick={() => onPick(p.id)}>{p.icon} {p.title || "Untitled"}</li>)}</ul></div></div>;
+}
+
+function SharePop({ name, email, onClose, onCopy }: { name: string; email: string; onClose: () => void; onCopy: () => void }) {
+  return <div className="ntn-sharepop" role="dialog" aria-label="Share" onKeyDown={e => e.key === "Escape" && onClose()}>
+    <div className="tabs"><b className="on">Share</b><b>Publish</b><a>Learn about sharing</a></div>
+    <div className="inv"><input placeholder="Email or group, separated by commas" aria-label="Invite" /><button>Share</button></div>
+    <div className="who"><span className="ns-av">{(name || "N")[0].toUpperCase()}</span><span><b>{name} (You)</b><small>{email}</small></span><em>Full access</em></div>
+    <div className="gen"><small>General access</small><div><span className="lk">🔒︎</span><span><b>Only people invited</b></span></div></div>
+    <div className="ft"><a>Advanced</a><button onClick={onCopy}>🔗︎ Copy link</button></div></div>;
+}
+const SET_NAV: [string, string[]][] = [["", ["Search settings"]], ["Account", ["Preferences", "Notifications", "Mail & Calendar"]], ["Workspace", ["General", "People", "Import"]], ["Features", ["Notion AI", "Meeting notes", "Connections", "Notion MCP", "Public pages", "Emoji", "Developer"]], ["Admin", ["Teamspaces"]], ["Access & billing", ["Upgrade plan"]]];
+function SettingsModal({ name, onClose }: { name: string; onClose: () => void }) {
+  const Sel = ({ t }: { t: string }) => <span className="sel">{t} ⌄</span>; const Tg = ({ on }: { on?: boolean }) => <span className={"tg" + (on ? " on" : "")}><i /></span>;
+  const Row = ({ t, d, c }: { t: string; d: string; c: React.ReactNode }) => <div className="row"><div><b>{t}</b><small>{d}</small></div>{c}</div>;
+  return <div className="ntn-overlay ns-ov" onMouseDown={e => { if (e.target === e.currentTarget) onClose(); }}><div className="ns-set" role="dialog" aria-label="Settings" onKeyDown={e => e.key === "Escape" && onClose()}>
+    <nav>{SET_NAV.map(([h, items]) => <div key={h}>{h && <h6>{h}</h6>}{items.map((i, n) => <a key={i} className={i === "Preferences" ? "on" : i === "Search settings" ? "ss" : ""}>{h === "Account" && n === 0 ? <span className="ns-av">{(name || "N")[0]}</span> : null}{h === "Account" && n === 0 ? name : i}</a>)}</div>)}</nav>
+    <section><button className="x" onClick={onClose} aria-label="Close">✕</button>
+      <h2>Preferences</h2><p className="sub">Choose how you want Notion to look and behave</p>
+      <h3>Appearance</h3><Row t="Theme" d="Choose a theme for Notion on this device" c={<Sel t="Use system setting" />} /><Row t="High contrast" d="Increase contrast for improved visibility" c={<Sel t="Use system setting" />} />
+      <h3>Input options</h3><Row t="Use Enter to add a new line" d="Applies to chat, comments, and other input fields. Press Cmd/Ctrl + Enter to send." c={<Tg />} />
+      <h3>Language & time</h3><Row t="Language" d="Choose the language you want Notion in use" c={<Sel t="English (US)" />} /><Row t="Number format" d="Choose how numbers and currencies are formatted. Default uses your language setting." c={<Sel t="Default" />} />
+      <Row t="Always show text direction controls" d="Show the option to change text direction (left to right or right to left) in the editor, regardless of what language you are using" c={<Tg />} /><Row t="Start week on Monday" d="This will affect the way your calendars appear in Notion" c={<Tg />} />
+      <Row t="Date format" d="Set the default format for new @date mentions" c={<Sel t="Relative" />} /><Row t="Set time zone automatically using your location" d="Reminders, notifications, and emails will be delivered to you based on your time zone" c={<Tg on />} /><Row t="Time zone" d="Choose your time zone" c={<Sel t="(GMT-4:00) New York" />} />
+    </section></div></div>;
 }
