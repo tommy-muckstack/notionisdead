@@ -5,11 +5,11 @@ Free, open-source Notion alternative. Part of the [IsDead series](https://yourap
 **Status: open source, not deployed yet**. Surfaces follow `templates/marketing-site.md` in `@isdead/design`: one marketing page (`/`, price comparison at `#pricing`), `/login`, and the app at `/app`.
 
 ## What works
-- **Pages:** nested page tree, icons, favorites, sub-pages, move-to, duplicate (deep), Trash with restore / delete forever / empty, breadcrumbs, recent pages, home screen.
+- **Pages:** nested page tree, icons, covers (gallery / upload / link, reposition), favorites, sub-pages, move-to, duplicate (deep), page font / small text / full width / lock, page history, comments, Trash popover with search + restore / delete forever / empty, breadcrumbs, recent pages, home screen, template gallery.
 - **Block editor:** 25 block types (text, H1-4, bulleted/numbered/toggle lists, to-do, quote, callout, code, divider, page, link to page, image, video, audio, file, web bookmark, equation, table of contents, columns, inline table/board databases). Markdown shortcuts (`# `, `- `, `1. `, `[] `, `> ` toggle, `" ` quote, ````, `---`, `$$`), grouped slash menu (anywhere in a line), floating formatting toolbar on selection (turn into, bold/italic/underline/strike/code, link, colour), `@` mentions (people, pages, dates), Enter/Backspace list behaviour, drag handle to reorder or ⌘⇧↑/↓, ⌘B/I/U/E/K and ⌘⇧S on a selection, ⌘D duplicate, paste Markdown into blocks, block menu (turn into, colour, copy link, duplicate, move to, delete).
 - **Inline:** **bold**, *italic*, underline, `code`, ~~strike~~, colours/highlights, links, @mentions and [[page links]] with backlinks.
 - **Search:** ⌘K across titles and body text, with create-from-search.
-- **Markdown:** export any page, import a .md file; the block↔Markdown round trip is covered by a golden corpus in the tests.
+- **Export / import / publish:** export as Markdown & CSV, HTML or PDF (with sub-pages as a zip); import Markdown, HTML, plain text or CSV; publish a read-only copy of a page to the web at `/p/<id>` (server-stored, unpublish any time). The block↔Markdown round trip is covered by a golden corpus in the tests.
 - 43 unit tests; `npm run shots` runs a Playwright editor smoke test; `BASE=http://localhost:3000/notionisdead node scripts/e2e-editor.mjs` drives the editor with real mouse/keyboard events.
 
 ## Known gaps

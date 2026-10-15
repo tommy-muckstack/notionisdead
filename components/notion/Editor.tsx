@@ -32,7 +32,7 @@ const rawLen = (el: HTMLElement) => { if (el.classList.contains("ntn-chip")) ret
 type Pending = { id: string; caret: number; end?: number } | null;
 type Props = { blocks: Block[]; onChange: (b: Block[]) => void; autoFocusFirst?: boolean; focusFirst?: number; nested?: boolean; pageBlocks?: Block[]; hint?: string };
 export function Editor({ blocks, onChange, autoFocusFirst, focusFirst = 0, nested, pageBlocks, hint }: Props) {
-  const env = useEnv(); const { resolve, onPage } = env;
+  const env = useEnv(); const { resolve, onPage } = env; const ro = !!env.readOnly;
   const [focus, setFocus] = useState<string | null>(null); const [pending, setPending] = useState<Pending>(null);
   const [slash, setSlash] = useState<{ id: string; at: number; q: string; i: number } | null>(null);
   const [mention, setMention] = useState<{ id: string; at: number; q: string; i: number } | null>(null);
@@ -137,7 +137,7 @@ export function Editor({ blocks, onChange, autoFocusFirst, focusFirst = 0, neste
 
   const grow = (el: HTMLTextAreaElement | null) => { if (el) { el.style.height = "0px"; el.style.height = el.scrollHeight + "px"; } };
   const placeholder = (b: Block, i: number) => i === 0 && blocks.length === 1 && b.type === "p" ? (hint ?? "Type '/' for commands") : ({ h1: "Heading 1", h2: "Heading 2", h3: "Heading 3", h4: "Heading 4", p: "Type '/' for commands", bullet: "List", number: "List", todo: "To-do", toggle: "Toggle", quote: "Empty quote", callout: "Type something…", code: "Write some code…", equation: "E = mc^2" } as Record<string, string>)[b.type] ?? "";
-  const prefixEl = (b: Block) => b.type === "bullet" ? <span className="ntn-mark">•</span> : b.type === "number" ? <span className="ntn-mark">{nums[b.id]}.</span> : b.type === "todo" ? <input type="checkbox" className="ntn-check" aria-label="Done" checked={!!b.checked} onChange={e => set(b.id, { checked: e.target.checked })} />
+  const prefixEl = (b: Block) => b.type === "bullet" ? <span className="ntn-mark">•</span> : b.type === "number" ? <span className="ntn-mark">{nums[b.id]}.</span> : b.type === "todo" ? <input type="checkbox" className="ntn-check" aria-label="Done" checked={!!b.checked} disabled={ro} onChange={e => set(b.id, { checked: e.target.checked })} />
     : b.type === "toggle" ? <button type="button" className={"ntn-tgl" + (b.open ? " open" : "")} aria-label={b.open ? "Collapse" : "Expand"} aria-expanded={!!b.open} onClick={() => set(b.id, { open: !b.open })}>▶</button> : b.type === "callout" ? <span className="ntn-callout__icon" aria-hidden>💡</span> : null;
 
   // ---- drag to reorder ----
@@ -146,7 +146,7 @@ export function Editor({ blocks, onChange, autoFocusFirst, focusFirst = 0, neste
     onDrop: (e: React.DragEvent) => { e.preventDefault(); if (!drag || !drop) return; const to = idx(drop.id) + (drop.after ? 1 : 0); onChange(reorder(blocks, drag, to)); setDrag(null); setDrop(null); },
   });
   const dropCls = (b: Block) => drop?.id === b.id ? (drop.after ? " drop-after" : " drop-before") : "";
-  const handle = (b: Block, i: number) => <div className="ntn-handle" contentEditable={false}>
+  const handle = (b: Block, i: number) => ro ? null : <div className="ntn-handle" contentEditable={false}>
     <button type="button" aria-label="Add block below" title="Click to add a block below" onClick={() => insertAfter(i, mk("p"))}>＋</button>
     <button type="button" aria-label="Block menu" title="Drag to move, click to open menu" draggable onDragStart={e => { setDrag(b.id); setSel(null); e.dataTransfer.setData("text/plain", b.id); e.dataTransfer.effectAllowed = "move"; }} onDragEnd={() => { setDrag(null); setDrop(null); }} onClick={() => setMenuFor(menuFor === b.id ? null : b.id)} aria-haspopup="menu" aria-expanded={menuFor === b.id}>⋮⋮</button>
     {menuFor === b.id && <BlockMenu block={b} onClose={() => setMenuFor(null)} onTurnInto={t => onChange(turnInto(blocks, b.id, t))} onColor={(c, bg) => set(b.id, bg ? { bg: c ?? undefined } : { color: c ?? undefined })}
@@ -176,12 +176,12 @@ export function Editor({ blocks, onChange, autoFocusFirst, focusFirst = 0, neste
         {handle(b, i)}
         {prefixEl(b)}
         <div className="ntn-text">
-          {isFocus || b.type === "code" ? <textarea ref={el => { if (el) { refs.current.set(b.id, el); grow(el); } else refs.current.delete(b.id); }} rows={1} spellCheck={b.type !== "code" && !eq} aria-label={`Block ${i + 1}`} value={b.text} className="ntn-input" placeholder={placeholder(b, i)}
+          {(isFocus || b.type === "code") && !ro ? <textarea ref={el => { if (el) { refs.current.set(b.id, el); grow(el); } else refs.current.delete(b.id); }} rows={1} spellCheck={b.type !== "code" && !eq} aria-label={`Block ${i + 1}`} value={b.text} className="ntn-input" placeholder={placeholder(b, i)}
             onChange={e => change(b, e.target.value, e.target.selectionStart)} onKeyDown={e => keydown(e, b)} onFocus={() => setFocus(b.id)} onBlur={() => setTimeout(() => { if (refs.current.get(b.id) !== document.activeElement) setFocus(f => (f === b.id ? null : f)); }, 0)}
             onSelect={e => { if (document.activeElement === e.currentTarget) selFromTextarea(b, e.currentTarget); }} onMouseUp={e => selFromTextarea(b, e.currentTarget)}
             onPaste={e => { const t = e.clipboardData.getData("text/plain"); if (/\n/.test(t) && b.type !== "code" && !eq) { e.preventDefault(); insertMarkdown(b, t); } }} />
             : <div className="ntn-view" tabIndex={-1} data-testid="view" onMouseDown={e => { if ((e.target as HTMLElement).closest("a,button,input")) return; e.stopPropagation(); }}
-              onMouseUp={e => { const view = e.currentTarget; if ((e.target as HTMLElement).closest("a")) return; if (selFromView(b, view)) return; const s = window.getSelection(); const off = s && s.anchorNode ? rawOffset(view, s.anchorNode, s.anchorOffset) : null; setSel(null); setPending({ id: b.id, caret: off ?? b.text.length }); setFocus(b.id); }}>
+              onMouseUp={e => { const view = e.currentTarget; if (ro || (e.target as HTMLElement).closest("a")) return; if (selFromView(b, view)) return; const s = window.getSelection(); const off = s && s.anchorNode ? rawOffset(view, s.anchorNode, s.anchorOffset) : null; setSel(null); setPending({ id: b.id, caret: off ?? b.text.length }); setFocus(b.id); }}>
               {eq ? <span className="ntn-eq" data-s={0}>{b.text || <span className="ntn-ph">Add a TeX equation</span>}</span> : <InlineText text={b.text} resolve={resolve} onPage={onPage} placeholder={i === 0 && blocks.length === 1 ? placeholder(b, i) : undefined} />}</div>}
           {slash?.id === b.id && <SlashMenu q={slash.q} index={slash.i} onPick={m => choose(b.id, m)} onHover={n => setSlash({ ...slash, i: n })} />}
           {mention?.id === b.id && <MentionMenu q={mention.q} index={mention.i} onPick={m => pickMention(b, m)} onHover={n => setMention({ ...mention, i: n })} />}
@@ -190,7 +190,7 @@ export function Editor({ blocks, onChange, autoFocusFirst, focusFirst = 0, neste
         {b.type === "toggle" && b.open && <div className="ntn-toggle__kids"><Editor nested hint="Empty toggle. Click or drop blocks inside." blocks={b.kids?.length ? b.kids : [mk("p")]} onChange={kids => set(b.id, { kids: kids.length ? kids : [mk("p")] })} pageBlocks={pageBlocks ?? blocks} /></div>}
       </div>;
     })}
-    {!nested && <button type="button" className="ntn-addrow" onClick={() => { const last = blocks[blocks.length - 1]; if (last && last.type === "p" && !last.text) { setPending({ id: last.id, caret: 0 }); return; } const p = mk("p"); onChange([...blocks, p]); setPending({ id: p.id, caret: 0 }); }} aria-label="Click to add a block below"> </button>}
+    {!nested && !ro && <button type="button" className="ntn-addrow" onClick={() => { const last = blocks[blocks.length - 1]; if (last && last.type === "p" && !last.text) { setPending({ id: last.id, caret: 0 }); return; } const p = mk("p"); onChange([...blocks, p]); setPending({ id: p.id, caret: 0 }); }} aria-label="Click to add a block below"> </button>}
     {sel && selBlock && <Toolbar sel={sel} block={selBlock} onClose={() => setSel(null)} onStyle={k => style(selBlock, k)} onLink={h => link(selBlock, h)} onColor={(c, bg) => color(selBlock, c, bg)} onTurnInto={t => { onChange(turnInto(blocks, selBlock.id, t)); setSel(null); }} onComment={env.onComment ? () => { env.onComment!(selBlock.id); setSel(null); } : undefined} />}
   </div>;
 }

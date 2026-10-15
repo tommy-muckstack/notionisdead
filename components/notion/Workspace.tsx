@@ -16,15 +16,20 @@ import { addComment, deleteThread, editComment, openThreads, replyComment, resol
 import { TEMPLATES, createFromTemplate, type Template } from "@/lib/notion/templates";
 import { CommentBox, CommentsPane, ThreadView, type ThreadActions } from "./Comments";
 import { TemplateGallery } from "./TemplateGallery";
+import { Cover, ExportDialog, HistoryDialog, ImportDialog, PageMenu, SharePop, TrashPop } from "./PageChrome";
+import { htmlToMarkdown, textToMarkdown } from "@/lib/notion/importers";
+import { restoreSnapshot, type Snapshot } from "@/lib/notion/pages";
+import { newDb, bid, mk as mkBlock, DB_STATUSES, type DbStatus } from "@/lib/notion/blocks";
+import { useSearchParams } from "next/navigation";
 import { Editor } from "./Editor";
 import { Popwrap } from "./Popwrap";
 import { EditorCtx, type EditorEnv } from "./editorEnv";
 import { pid } from "@/lib/notion/pages";
 
-type Pop = null | "ws" | "share" | "menu" | "icon";
+type Pop = null | "ws" | "share" | "menu" | "icon" | "cover" | "trash";
+const COVER_DEFAULT = "g:2";
+const cloneDeep = (b: Block): Block => ({ ...b, id: bid(), kids: b.kids?.map(cloneDeep), cols: b.cols?.map(c => c.map(cloneDeep)), db: b.db ? { ...b.db, rows: b.db.rows.map(r => ({ ...r, id: bid() })) } : undefined });
 const ICONS = ["📄", "📝", "📚", "🧭", "🗓️", "✅", "💡", "🎯", "🚀", "🧪", "🎨", "📌", "🏠", "💼", "📊", "🔖"];
-const download = (name: string, text: string) => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: "text/markdown" })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); };
-const slug = (s: string) => (s || "untitled").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "untitled";
 
 export function Workspace({ uid, name, email, demo, view }: { uid: string; name: string; email: string; demo: boolean; view: string[] }) {
   const router = useRouter();
@@ -32,7 +37,7 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
   const [expanded, setExpanded] = useLocal<Record<string, boolean>>(uid, "expanded", {});
   const [searching, setSearching] = useState(false); const [toast, setToast] = useState(""); const [navOpen, setNavOpen] = useState(false); const [moveOpen, setMoveOpen] = useState(false); const [settings, setSettings] = useState(false);
   // One popover at a time (QA #16): a single slot; opening one replaces another, Escape/click-away clears it.
-  const [pop, setPop] = useState<Pop>(null); const [cpane, setCpane] = useState(false); const [draftBlock, setDraftBlock] = useState<string | null>(null); const [focusThread, setFocusThread] = useState<string | null>(null); const [pageDraft, setPageDraft] = useState(false); const [gallery, setGallery] = useState<string | null | false>(false); const toggle = (k: NonNullable<Pop>) => setPop(p => (p === k ? null : k)); const closePop = useCallback(() => setPop(null), []);
+  const [pop, setPop] = useState<Pop>(null); const [cpane, setCpane] = useState(false); const [draftBlock, setDraftBlock] = useState<string | null>(null); const [focusThread, setFocusThread] = useState<string | null>(null); const [pageDraft, setPageDraft] = useState(false); const [gallery, setGallery] = useState<string | null | false>(false); const [dlg, setDlg] = useState<null | "export" | "history" | "import">(null); const params = useSearchParams(); const toggle = (k: NonNullable<Pop>) => setPop(p => (p === k ? null : k)); const closePop = useCallback(() => setPop(null), []);
   const fileRef = useRef<HTMLInputElement>(null); const titleRef = useRef<HTMLInputElement>(null); const [focusFirst, setFocusFirst] = useState(0);
   useEffect(() => { if (ready && !stored) setStored(demo ? seedWorkspace() : emptyWorkspace()); }, [ready, stored, demo, setStored]);
   const ws = stored;
@@ -45,6 +50,9 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
   useEffect(() => { if (page && !page.trashed) commit(w => (w.recent[0] === page.id ? w : touchRecent(w, page.id))); }, [page?.id]); // eslint-disable-line
   useEffect(() => { const h = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setSearching(true); } }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, []);
   const open = useCallback((id: string) => { setNavOpen(false); router.push(`/app/${id}`); }, [router]);
+  const dup = params.get("dup");
+  useEffect(() => { if (!ws || !dup) return; (async () => { try { const r = await fetch(`${BP}/api/publish?id=${encodeURIComponent(dup)}`); const j = await r.json(); if (!r.ok || !j.duplicable) { notify("That page can't be duplicated."); router.replace("/app"); return; }
+    const pg = j.page; const r2 = createPage(ws, { title: pg.title, icon: pg.icon, blocks: (pg.blocks as Block[]).map(cloneDeep) }); setStored({ ...r2.ws, pages: r2.ws.pages.map(x => x.id === r2.page.id ? { ...x, cover: pg.cover, coverY: pg.coverY, font: pg.font, smallText: pg.smallText, fullWidth: pg.fullWidth } : x) }); notify("Page duplicated into your workspace"); router.replace(`/app/${r2.page.id}`); } catch { notify("Could not load that page."); router.replace("/app"); } })(); }, [ws ? 1 : 0, dup]); // eslint-disable-line
   const newPage = useCallback((parentId: string | null = null, title = "") => { if (!ws) return; const r = createPage(ws, { parentId, title }); setStored(r.ws); if (parentId) setExpanded(e => ({ ...e, [parentId]: true })); open(r.page.id); }, [ws, setStored, setExpanded, open]);
   if (!ws) return <div className="ntn-loading" role="status">Loading your workspace…</div>;
   const resolve = (t: string) => findByTitle(ws, t)?.id ?? null;
@@ -62,6 +70,7 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
     pages: live(ws).filter(p => p.id !== page?.id).map(p => ({ id: p.id, title: p.title, icon: p.icon })),
     createSubpage: page ? title => { const id = pid(); commit(w => createPage(w, { id, title, parentId: page.id }).ws); setExpanded(e => ({ ...e, [page.id]: true })); return { id, title, icon: "📄" }; } : undefined,
     moveBlockToPage: (b, pid) => commit(w => { const t = getPage(w, pid); return t ? updatePage(w, pid, { blocks: [...t.blocks.filter(x => !(x.type === "p" && !x.text && t.blocks.length === 1)), b] }) : w; }),
+    readOnly: !!page?.locked,
     onFocusTitle: () => { const el = titleRef.current; if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } },
     onComment: page ? blockId => { setCpane(true); setDraftBlock(blockId); setFocusThread(null); } : undefined,
     comments: page ? Object.fromEntries(openThreads(page).filter(t => t.blockId).map(t => [t.blockId!, (page.threads ?? []).filter(x => x.blockId === t.blockId && !x.resolved).length])) : {},
@@ -77,6 +86,15 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
   const addThread = (blockId: string | null, text: string) => { if (!page) return; const r = addComment(ws, page.id, blockId, me, text); setStored(r.ws); setDraftBlock(null); setPageDraft(false); setFocusThread(r.thread.id); if (blockId) setCpane(true); notify("Comment added"); };
   const useTemplate = (t: Template) => { const r = createFromTemplate(ws, t, me); setStored(r.ws); setGallery(false); notify(`Created “${t.title}” from the template`); open(r.page.id); };
   const jump = (blockId: string) => { document.getElementById(blockId)?.scrollIntoView({ behavior: "smooth", block: "center" }); };
+  const patchPage = (patch: Parameters<typeof updatePage>[2]) => page && commit(w => updatePage(w, page.id, patch));
+  const importFile = async (kind: string, f: File) => {
+    const text = await f.text(); const name = f.name.replace(/\.[^.]+$/, "");
+    if (kind === "csv") { const rows = text.replace(/\r\n/g, "\n").split("\n").filter(l => l.trim()).map(l => l.match(/("([^"]|"")*"|[^,]*)(,|$)/g)?.map(c => c.replace(/,$/, "").replace(/^"|"$/g, "").replace(/""/g, '"')) ?? []); if (!rows.length) { notify("That CSV is empty."); return; }
+      const head = rows[0].map(h => h.toLowerCase()); const ni = Math.max(0, head.findIndex(h => h === "name" || h === "title")); const si = head.findIndex(h => h === "status"); const body = head.some(h => ["name", "title", "status"].includes(h)) ? rows.slice(1) : rows;
+      const db = { ...newDb(), title: name, rows: body.map(r => ({ id: bid(), name: r[ni] ?? "", status: ((DB_STATUSES as string[]).includes(r[si] ?? "") ? r[si] : "Not started") as DbStatus })) };
+      const r = createPage(ws, { title: name, blocks: [mkBlock("table", "", { db }), mkBlock("p")] }); setStored(r.ws); notify(`Imported ${db.rows.length} rows from “${f.name}”`); open(r.page.id); return; }
+    const md = kind === "html" ? htmlToMarkdown(text) : textToMarkdown(text); const r = importMarkdown(ws, md); const titled = r.page.title === "Imported page" ? { ...r.ws, pages: r.ws.pages.map(x => x.id === r.page.id ? { ...x, title: name } : x) } : r.ws; setStored(titled); notify(`Imported “${r.page.title === "Imported page" ? name : r.page.title}”`); open(r.page.id);
+  };
   const chooseMove = (id: string | null) => { if (!page) return; commit(w => movePage(w, page.id, id)); setMoveOpen(false); notify(id ? `Moved into ${getPage(ws, id)?.title || "Untitled"}` : "Moved to top level"); };
 
   return <div className="ntn" data-testid="notion-app">
@@ -100,7 +118,8 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
       <span className="ntn-navbtn ns-row"><span>▤ Try AI Meeting Notes</span></span>
       <span className="ntn-navbtn ns-row"><span>▥ Library</span></span>
       <span className="ntn-navbtn ns-row"><span>? Help</span></span>
-      <Link className={"ntn-navbtn" + (kind === "trash" ? " on" : "")} href="/app/trash" onClick={() => setNavOpen(false)}><span>🗑 Trash</span>{trashed.length > 0 && <em>{trashed.length}</em>}</Link>
+      <Popwrap open={pop === "trash"} onClose={closePop}><button className={"ntn-navbtn ntn-trashbtn" + (kind === "trash" || pop === "trash" ? " on" : "")} aria-haspopup="dialog" aria-expanded={pop === "trash"} onClick={() => toggle("trash")}><span>🗑 Trash</span>{trashed.length > 0 && <em>{trashed.length}</em>}</button>
+        {pop === "trash" && <TrashPop ws={ws} trashed={trashed} onRestore={id => { commit(w => restorePage(w, id)); notify("Restored"); }} onDelete={id => { commit(w => deleteForever(w, id)); notify("Deleted forever"); }} onEmpty={() => { commit(emptyTrash); notify("Trash emptied"); closePop(); }} onOpenAll={() => { closePop(); setNavOpen(false); router.push("/app/trash"); }} />}</Popwrap>
       <div className="ns-foot"><span className="ns-chat">New chat <kbd>Ctrl+O</kbd></span><span className="ns-fi" /><span className="ns-fi b" /><form method="post" action={`${BP}/api/session/logout`}><button className="ns-out" aria-label="Sign out" title="Sign out">⏻</button></form></div>
     </aside>
     <main className="ntn-main">
@@ -109,26 +128,27 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
         {page && !page.trashed && <div className="ntn-top__actions">
           <span className="ntn-edited" title={`${wordCount(page)} words`}>Edited just now</span>
           <button className={"iconbtn ntn-cbtn" + (cpane ? " on" : "")} aria-label="Comments" aria-pressed={cpane} title="Comments" onClick={() => { setCpane(o => !o); setDraftBlock(null); }}>💬{openThreads(page).length > 0 && <em>{openThreads(page).length}</em>}</button>
-          <Popwrap open={pop === "share"} onClose={closePop}><button className="ntn-sharebtn" aria-haspopup="dialog" aria-expanded={pop === "share"} onClick={() => toggle("share")}>🔒︎ Share</button>{pop === "share" && <SharePop name={demo ? "Demo User" : name} email={email} onClose={closePop} onCopy={() => { navigator.clipboard?.writeText(location.href); closePop(); notify("Link copied"); }} />}</Popwrap>
+          <Popwrap open={pop === "share"} onClose={closePop}><button className="ntn-sharebtn" aria-haspopup="dialog" aria-expanded={pop === "share"} onClick={() => toggle("share")}>🔒︎ Share</button>{pop === "share" && <SharePop page={page} name={demo ? "Demo User" : name} email={email} onClose={closePop} onCopy={() => { navigator.clipboard?.writeText(location.href); closePop(); notify("Link copied"); }} onPublished={pub => commit(w => ({ ...w, pages: w.pages.map(x => x.id === page.id ? { ...x, published: pub } : x) }))} notify={notify} />}</Popwrap>
           <button className="iconbtn" aria-label="Copy link" onClick={() => { navigator.clipboard?.writeText(location.href); notify("Link copied"); }}>🔗︎</button>
           <button className="iconbtn" aria-pressed={page.favorite} aria-label={page.favorite ? "Remove from favorites" : "Add to favorites"} onClick={() => commit(w => toggleFavorite(w, page.id))}>{page.favorite ? "★" : "☆"}</button>
           <Popwrap open={pop === "menu"} onClose={closePop}><button className="iconbtn" aria-label="Page actions" aria-haspopup="menu" aria-expanded={pop === "menu"} onClick={() => toggle("menu")}>•••</button>
-            {pop === "menu" && <div className="ntn-menu ntn-menu--right" role="menu">
-              <button role="menuitem" onClick={() => { const r = duplicatePage(ws, page.id); setStored(r.ws); closePop(); notify("Page duplicated"); open(r.page.id); }}>Duplicate</button>
-              <button role="menuitem" onClick={() => { setMoveOpen(true); closePop(); }}>Move to…</button>
-              <button role="menuitem" onClick={() => { download(`${slug(page.title)}.md`, pageMarkdown(page)); closePop(); notify("Exported Markdown"); }}>Export as Markdown</button>
-              <div className="ntn-menu__sep" /><button role="menuitem" className="is-danger" onClick={() => { commit(w => trashPage(w, page.id)); closePop(); notify("Moved to Trash"); router.push("/app"); }}>Move to Trash</button></div>}</Popwrap></div>}
+            {pop === "menu" && <PageMenu page={page} ws={ws} onChange={patchPage} onClose={closePop} notify={notify}
+              onDuplicate={() => { const r = duplicatePage(ws, page.id); setStored(r.ws); notify("Page duplicated"); open(r.page.id); }} onMove={() => setMoveOpen(true)} onFavorite={() => commit(w => toggleFavorite(w, page.id))}
+              onExport={() => setDlg("export")} onImport={() => setDlg("import")} onHistory={() => setDlg("history")} onTrash={() => { commit(w => trashPage(w, page.id)); notify("Moved to Trash"); router.push("/app"); }} />}</Popwrap></div>}
       </header>
       <div className={"ntn-body" + (cpane && page && !page.trashed ? " has-pane" : "")}><div className="ntn-scroll">
         {kind === "home" && <div className="ns-banner" role="note"><span>◌ Home is getting an update in our new sidebar redesign. Opt in to keep your pages, Notion AI, and meetings within reach.</span><a>Learn more</a><i>✕</i></div>}
-        {kind === "home" && <Home ws={ws} name={demo ? "there" : (name || email.split("@")[0])} open={open} onNew={() => newPage(null)} onImport={() => fileRef.current?.click()} onTemplate={id => setGallery(id)} />}
+        {kind === "home" && <Home ws={ws} name={demo ? "there" : (name || email.split("@")[0])} open={open} onNew={() => newPage(null)} onImport={() => setDlg("import")} onTemplate={id => setGallery(id)} />}
         {kind === "trash" && <Trash ws={ws} trashed={trashed} onRestore={id => { commit(w => restorePage(w, id)); notify("Restored"); }} onDelete={id => { commit(w => deleteForever(w, id)); notify("Deleted forever"); }} onEmpty={() => { commit(emptyTrash); notify("Trash emptied"); }} />}
         {missing && <div className="ntn-empty"><h2 className="ids-h2">This page isn't here</h2><p className="ids-muted">It may have been moved to the Trash.</p><Link className="ids-btn ids-btn--outline" href="/app">Back home</Link></div>}
-        {page && !page.trashed && <article className="ntn-page" key={page.id} data-testid="page">
+        {page && !page.trashed && page.cover && <Cover page={page} onChange={patchPage} pick={pop === "cover"} onPick={() => toggle("cover")} onClose={closePop} />}
+        {page && !page.trashed && <article className={"ntn-page" + (page.font && page.font !== "default" ? " f-" + page.font : "") + (page.smallText ? " is-small" : "") + (page.fullWidth ? " is-wide" : "") + (page.locked ? " is-locked" : "") + (page.cover ? " has-cover" : "")} key={page.id} data-testid="page">
+          {page.locked && <div className="ntn-lockbar">🔒 Locked <button type="button" onClick={() => patchPage({ locked: false })}>Unlock</button></div>}
           <Popwrap open={pop === "icon"} onClose={closePop} className="ntn-iconwrap"><button className={"ntn-icon" + (page.icon === "📄" ? " is-def" : "")} aria-label="Change icon" aria-haspopup="menu" aria-expanded={pop === "icon"} onClick={() => toggle("icon")}>{page.icon === "📄" ? "☺ Add icon" : page.icon}</button>
             {pop === "icon" && <div className="ntn-menu ntn-icons" role="menu">{ICONS.map(i => <button key={i} role="menuitem" aria-label={`Icon ${i}`} onClick={() => { commit(w => updatePage(w, page.id, { icon: i })); closePop(); }}>{i}</button>)}</div>}
-            <button className="ntn-icon is-def ntn-addcmt" aria-label="Add comment" onClick={() => { setPageDraft(true); }}>💬 Add comment</button></Popwrap>
-          <input ref={titleRef} className="ntn-title" aria-label="Page title" placeholder="Untitled" value={page.title} onChange={e => commit(w => updatePage(w, page.id, { title: e.target.value }))}
+            {!page.cover && <button className="ntn-icon is-def ntn-addcover" aria-label="Add cover" onClick={() => { patchPage({ cover: COVER_DEFAULT, coverY: 50 }); }}>🖼 Add cover</button>}
+            <button className={"ntn-icon is-def ntn-addcmt" + (page.cover ? " has-cover" : "")} aria-label="Add comment" onClick={() => { setPageDraft(true); }}>💬 Add comment</button></Popwrap>
+          <input ref={titleRef} className="ntn-title" aria-label="Page title" placeholder="Untitled" value={page.title} readOnly={!!page.locked} onChange={e => commit(w => updatePage(w, page.id, { title: e.target.value }))}
             onKeyDown={e => { if (e.key === "Enter" || (e.key === "ArrowDown" && e.currentTarget.selectionStart === page.title.length)) { e.preventDefault(); setFocusFirst(n => n + 1); } }} />
           <EditorCtx.Provider value={env}>
           {(pageDraft || (page.threads ?? []).some(t => !t.blockId && !t.resolved)) && <section className="ntn-pagecmts" aria-label="Page comments" data-testid="page-comments">
@@ -144,6 +164,9 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
     </main>
     <input ref={fileRef} type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden data-testid="import-file" onChange={async e => { const f = e.target.files?.[0]; if (!f) return; const r = importMarkdown(ws, await f.text()); setStored(r.ws); notify(`Imported “${r.page.title}”`); open(r.page.id); e.target.value = ""; }} />
     {searching && <Search ws={ws} onClose={() => setSearching(false)} onOpen={id => { setSearching(false); open(id); }} onCreate={t => { setSearching(false); newPage(null, t); }} />}
+    {dlg === "export" && page && <ExportDialog page={page} ws={ws} onClose={() => setDlg(null)} notify={notify} />}
+    {dlg === "history" && page && <HistoryDialog page={page} onClose={() => setDlg(null)} onRestore={(snap: Snapshot) => { commit(w => restoreSnapshot(w, page.id, snap)); notify("Version restored"); }} />}
+    {dlg === "import" && <ImportDialog onClose={() => setDlg(null)} onFile={importFile} />}
     {gallery !== false && <TemplateGallery initial={gallery ?? undefined} onUse={useTemplate} onClose={() => setGallery(false)} />}
     {settings && <SettingsModal name={demo ? "Demo User" : name} onClose={() => setSettings(false)} />}
     {moveOpen && page && <MoveDialog ws={ws} page={page} onPick={chooseMove} onClose={() => setMoveOpen(false)} />}
@@ -192,14 +215,6 @@ function MoveDialog({ ws, page, onPick, onClose }: { ws: WS; page: Page; onPick:
     <ul><li role="option" aria-selected={false} onClick={() => onPick(null)}>🏠 Top level</li>{opts.map(p => <li key={p.id} role="option" aria-selected={false} onClick={() => onPick(p.id)}>{p.icon} {p.title || "Untitled"}</li>)}</ul></div></div>;
 }
 
-function SharePop({ name, email, onClose, onCopy }: { name: string; email: string; onClose: () => void; onCopy: () => void }) {
-  return <div className="ntn-sharepop" role="dialog" aria-label="Share">
-    <div className="tabs"><b className="on">Share</b><b>Publish</b><a>Learn about sharing</a></div>
-    <div className="inv"><input placeholder="Email or group, separated by commas" aria-label="Invite" /><button>Share</button></div>
-    <div className="who"><span className="ns-av">{(name || "N")[0].toUpperCase()}</span><span><b>{name} (You)</b><small>{email}</small></span><em>Full access</em></div>
-    <div className="gen"><small>General access</small><div><span className="lk">🔒︎</span><span><b>Only people invited</b></span></div></div>
-    <div className="ft"><a>Advanced</a><button onClick={onCopy}>🔗︎ Copy link</button></div></div>;
-}
 const SET_NAV: [string, string[]][] = [["", ["Search settings"]], ["Account", ["Preferences", "Notifications", "Mail & Calendar"]], ["Workspace", ["General", "People", "Import"]], ["Features", ["Notion AI", "Meeting notes", "Connections", "Notion MCP", "Public pages", "Emoji", "Developer"]], ["Admin", ["Teamspaces"]], ["Access & billing", ["Upgrade plan"]]];
 function SettingsModal({ name, onClose }: { name: string; onClose: () => void }) {
   const box = useRef<HTMLDivElement>(null); useDismiss(box, onClose);
