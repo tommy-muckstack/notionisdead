@@ -16,6 +16,8 @@ export type EditorEnv = {
   onFocusTitle?: () => void;
   /** Toolbar / block menu "Comment" (wired by the comments feature). */
   onComment?: (blockId: string) => void;
+  /** Open comment threads per block id (badge) and how to show them. */
+  comments?: Record<string, number>; onShowComments?: (blockId: string) => void;
   notify?: (msg: string) => void;
 };
 export const EditorCtx = createContext<EditorEnv>({ resolve: () => null, onPage: () => {}, pages: [], me: "You" });

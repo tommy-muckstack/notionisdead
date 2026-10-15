@@ -1,5 +1,8 @@
 import { blocksToMarkdown, markdownToBlocks, mk, bid, plainText, type Block } from "./blocks";
-export type Page = { id: string; title: string; icon: string; parentId: string | null; blocks: Block[]; favorite: boolean; trashed: boolean; createdAt: string; updatedAt: string; order: number };
+export type Comment = { id: string; author: string; text: string; at: string };
+/** A discussion: on the page (blockId null) or anchored to a block. */
+export type Thread = { id: string; blockId: string | null; messages: Comment[]; resolved: boolean; createdAt: string };
+export type Page = { id: string; title: string; icon: string; parentId: string | null; blocks: Block[]; favorite: boolean; trashed: boolean; createdAt: string; updatedAt: string; order: number; threads?: Thread[] };
 export type Workspace = { pages: Page[]; recent: string[] };
 let n = 0; export const pid = () => `pg_${Date.now().toString(36)}${(n++).toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 const iso = (d: Date) => d.toISOString();
@@ -64,4 +67,16 @@ export function searchPages(ws: Workspace, q: string): Hit[] {
 }
 export const findByTitle = (ws: Workspace, title: string) => live(ws).find(p => (p.title || "Untitled").toLowerCase() === title.trim().toLowerCase());
 export const backlinks = (ws: Workspace, id: string): Page[] => { const t = getPage(ws, id)?.title.toLowerCase(); if (!t) return []; return live(ws).filter(p => p.id !== id && p.blocks.some(b => b.text.toLowerCase().includes(`[[${t}]]`))); };
+// ---- comments ----
+const patchPage = (ws: Workspace, id: string, f: (p: Page) => Page): Workspace => ({ ...ws, pages: ws.pages.map(p => p.id === id ? f(p) : p) });
+export function addComment(ws: Workspace, pageId: string, blockId: string | null, author: string, text: string, now = new Date()): { ws: Workspace; thread: Thread } {
+  const thread: Thread = { id: pid().replace("pg_", "th_"), blockId, messages: [{ id: pid().replace("pg_", "cm_"), author, text, at: iso(now) }], resolved: false, createdAt: iso(now) };
+  return { ws: patchPage(ws, pageId, p => ({ ...p, threads: [...(p.threads ?? []), thread] })), thread };
+}
+export const replyComment = (ws: Workspace, pageId: string, threadId: string, author: string, text: string, now = new Date()): Workspace =>
+  patchPage(ws, pageId, p => ({ ...p, threads: (p.threads ?? []).map(t => t.id === threadId ? { ...t, resolved: false, messages: [...t.messages, { id: pid().replace("pg_", "cm_"), author, text, at: iso(now) }] } : t) }));
+export const resolveThread = (ws: Workspace, pageId: string, threadId: string, resolved = true): Workspace => patchPage(ws, pageId, p => ({ ...p, threads: (p.threads ?? []).map(t => t.id === threadId ? { ...t, resolved } : t) }));
+export const deleteThread = (ws: Workspace, pageId: string, threadId: string): Workspace => patchPage(ws, pageId, p => ({ ...p, threads: (p.threads ?? []).filter(t => t.id !== threadId) }));
+export const editComment = (ws: Workspace, pageId: string, threadId: string, commentId: string, text: string): Workspace => patchPage(ws, pageId, p => ({ ...p, threads: (p.threads ?? []).map(t => t.id === threadId ? { ...t, messages: t.messages.map(m => m.id === commentId ? { ...m, text } : m) } : t) }));
+export const openThreads = (p: Page) => (p.threads ?? []).filter(t => !t.resolved);
 export const wordCount = (p: Page) => p.blocks.map(plainText).join(" ").split(/\s+/).filter(Boolean).length;

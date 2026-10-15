@@ -12,6 +12,10 @@ import {
   type Page, type Workspace as WS,
 } from "@/lib/notion/pages";
 import { seedWorkspace } from "@/lib/notion/seed";
+import { addComment, deleteThread, editComment, openThreads, replyComment, resolveThread } from "@/lib/notion/pages";
+import { TEMPLATES, createFromTemplate, type Template } from "@/lib/notion/templates";
+import { CommentBox, CommentsPane, ThreadView, type ThreadActions } from "./Comments";
+import { TemplateGallery } from "./TemplateGallery";
 import { Editor } from "./Editor";
 import { Popwrap } from "./Popwrap";
 import { EditorCtx, type EditorEnv } from "./editorEnv";
@@ -28,7 +32,7 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
   const [expanded, setExpanded] = useLocal<Record<string, boolean>>(uid, "expanded", {});
   const [searching, setSearching] = useState(false); const [toast, setToast] = useState(""); const [navOpen, setNavOpen] = useState(false); const [moveOpen, setMoveOpen] = useState(false); const [settings, setSettings] = useState(false);
   // One popover at a time (QA #16): a single slot; opening one replaces another, Escape/click-away clears it.
-  const [pop, setPop] = useState<Pop>(null); const toggle = (k: NonNullable<Pop>) => setPop(p => (p === k ? null : k)); const closePop = useCallback(() => setPop(null), []);
+  const [pop, setPop] = useState<Pop>(null); const [cpane, setCpane] = useState(false); const [draftBlock, setDraftBlock] = useState<string | null>(null); const [focusThread, setFocusThread] = useState<string | null>(null); const [pageDraft, setPageDraft] = useState(false); const [gallery, setGallery] = useState<string | null | false>(false); const toggle = (k: NonNullable<Pop>) => setPop(p => (p === k ? null : k)); const closePop = useCallback(() => setPop(null), []);
   const fileRef = useRef<HTMLInputElement>(null); const titleRef = useRef<HTMLInputElement>(null); const [focusFirst, setFocusFirst] = useState(0);
   useEffect(() => { if (ready && !stored) setStored(demo ? seedWorkspace() : emptyWorkspace()); }, [ready, stored, demo, setStored]);
   const ws = stored;
@@ -59,7 +63,20 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
     createSubpage: page ? title => { const id = pid(); commit(w => createPage(w, { id, title, parentId: page.id }).ws); setExpanded(e => ({ ...e, [page.id]: true })); return { id, title, icon: "📄" }; } : undefined,
     moveBlockToPage: (b, pid) => commit(w => { const t = getPage(w, pid); return t ? updatePage(w, pid, { blocks: [...t.blocks.filter(x => !(x.type === "p" && !x.text && t.blocks.length === 1)), b] }) : w; }),
     onFocusTitle: () => { const el = titleRef.current; if (el) { el.focus(); el.setSelectionRange(el.value.length, el.value.length); } },
+    onComment: page ? blockId => { setCpane(true); setDraftBlock(blockId); setFocusThread(null); } : undefined,
+    comments: page ? Object.fromEntries(openThreads(page).filter(t => t.blockId).map(t => [t.blockId!, (page.threads ?? []).filter(x => x.blockId === t.blockId && !x.resolved).length])) : {},
+    onShowComments: page ? blockId => { const t = (page.threads ?? []).find(x => x.blockId === blockId && !x.resolved) ?? (page.threads ?? []).find(x => x.blockId === blockId); setCpane(true); setDraftBlock(null); setFocusThread(t?.id ?? null); } : undefined,
   };
+  const me = demo ? "Demo User" : (name || email.split("@")[0] || "You");
+  const acts: ThreadActions = {
+    reply: (tid, text) => page && commit(w => replyComment(w, page.id, tid, me, text)),
+    resolve: (tid, r) => page && commit(w => resolveThread(w, page.id, tid, r)),
+    remove: (tid) => page && commit(w => deleteThread(w, page.id, tid)),
+    edit: (tid, cid, text) => page && commit(w => editComment(w, page.id, tid, cid, text)),
+  };
+  const addThread = (blockId: string | null, text: string) => { if (!page) return; const r = addComment(ws, page.id, blockId, me, text); setStored(r.ws); setDraftBlock(null); setPageDraft(false); setFocusThread(r.thread.id); if (blockId) setCpane(true); notify("Comment added"); };
+  const useTemplate = (t: Template) => { const r = createFromTemplate(ws, t, me); setStored(r.ws); setGallery(false); notify(`Created “${t.title}” from the template`); open(r.page.id); };
+  const jump = (blockId: string) => { document.getElementById(blockId)?.scrollIntoView({ behavior: "smooth", block: "center" }); };
   const chooseMove = (id: string | null) => { if (!page) return; commit(w => movePage(w, page.id, id)); setMoveOpen(false); notify(id ? `Moved into ${getPage(ws, id)?.title || "Untitled"}` : "Moved to top level"); };
 
   return <div className="ntn" data-testid="notion-app">
@@ -91,6 +108,7 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
         <nav className="ntn-crumbs" aria-label="Breadcrumb">{page ? breadcrumb(ws, page.id).map((p, i, a) => <span key={p.id}>{i > 0 && <i>/</i>}<Link href={`/app/${p.id}`}>{p.icon} {p.title || "Untitled"}</Link></span>) : <span>{kind === "trash" ? "🗑️ Trash" : "Home"}</span>}</nav>
         {page && !page.trashed && <div className="ntn-top__actions">
           <span className="ntn-edited" title={`${wordCount(page)} words`}>Edited just now</span>
+          <button className={"iconbtn ntn-cbtn" + (cpane ? " on" : "")} aria-label="Comments" aria-pressed={cpane} title="Comments" onClick={() => { setCpane(o => !o); setDraftBlock(null); }}>💬{openThreads(page).length > 0 && <em>{openThreads(page).length}</em>}</button>
           <Popwrap open={pop === "share"} onClose={closePop}><button className="ntn-sharebtn" aria-haspopup="dialog" aria-expanded={pop === "share"} onClick={() => toggle("share")}>🔒︎ Share</button>{pop === "share" && <SharePop name={demo ? "Demo User" : name} email={email} onClose={closePop} onCopy={() => { navigator.clipboard?.writeText(location.href); closePop(); notify("Link copied"); }} />}</Popwrap>
           <button className="iconbtn" aria-label="Copy link" onClick={() => { navigator.clipboard?.writeText(location.href); notify("Link copied"); }}>🔗︎</button>
           <button className="iconbtn" aria-pressed={page.favorite} aria-label={page.favorite ? "Remove from favorites" : "Add to favorites"} onClick={() => commit(w => toggleFavorite(w, page.id))}>{page.favorite ? "★" : "☆"}</button>
@@ -101,31 +119,39 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
               <button role="menuitem" onClick={() => { download(`${slug(page.title)}.md`, pageMarkdown(page)); closePop(); notify("Exported Markdown"); }}>Export as Markdown</button>
               <div className="ntn-menu__sep" /><button role="menuitem" className="is-danger" onClick={() => { commit(w => trashPage(w, page.id)); closePop(); notify("Moved to Trash"); router.push("/app"); }}>Move to Trash</button></div>}</Popwrap></div>}
       </header>
-      <div className="ntn-scroll">
+      <div className={"ntn-body" + (cpane && page && !page.trashed ? " has-pane" : "")}><div className="ntn-scroll">
         {kind === "home" && <div className="ns-banner" role="note"><span>◌ Home is getting an update in our new sidebar redesign. Opt in to keep your pages, Notion AI, and meetings within reach.</span><a>Learn more</a><i>✕</i></div>}
-        {kind === "home" && <Home ws={ws} name={demo ? "there" : (name || email.split("@")[0])} open={open} onNew={() => newPage(null)} onImport={() => fileRef.current?.click()} />}
+        {kind === "home" && <Home ws={ws} name={demo ? "there" : (name || email.split("@")[0])} open={open} onNew={() => newPage(null)} onImport={() => fileRef.current?.click()} onTemplate={id => setGallery(id)} />}
         {kind === "trash" && <Trash ws={ws} trashed={trashed} onRestore={id => { commit(w => restorePage(w, id)); notify("Restored"); }} onDelete={id => { commit(w => deleteForever(w, id)); notify("Deleted forever"); }} onEmpty={() => { commit(emptyTrash); notify("Trash emptied"); }} />}
         {missing && <div className="ntn-empty"><h2 className="ids-h2">This page isn't here</h2><p className="ids-muted">It may have been moved to the Trash.</p><Link className="ids-btn ids-btn--outline" href="/app">Back home</Link></div>}
         {page && !page.trashed && <article className="ntn-page" key={page.id} data-testid="page">
           <Popwrap open={pop === "icon"} onClose={closePop} className="ntn-iconwrap"><button className={"ntn-icon" + (page.icon === "📄" ? " is-def" : "")} aria-label="Change icon" aria-haspopup="menu" aria-expanded={pop === "icon"} onClick={() => toggle("icon")}>{page.icon === "📄" ? "☺ Add icon" : page.icon}</button>
-            {pop === "icon" && <div className="ntn-menu ntn-icons" role="menu">{ICONS.map(i => <button key={i} role="menuitem" aria-label={`Icon ${i}`} onClick={() => { commit(w => updatePage(w, page.id, { icon: i })); closePop(); }}>{i}</button>)}</div>}</Popwrap>
+            {pop === "icon" && <div className="ntn-menu ntn-icons" role="menu">{ICONS.map(i => <button key={i} role="menuitem" aria-label={`Icon ${i}`} onClick={() => { commit(w => updatePage(w, page.id, { icon: i })); closePop(); }}>{i}</button>)}</div>}
+            <button className="ntn-icon is-def ntn-addcmt" aria-label="Add comment" onClick={() => { setPageDraft(true); }}>💬 Add comment</button></Popwrap>
           <input ref={titleRef} className="ntn-title" aria-label="Page title" placeholder="Untitled" value={page.title} onChange={e => commit(w => updatePage(w, page.id, { title: e.target.value }))}
             onKeyDown={e => { if (e.key === "Enter" || (e.key === "ArrowDown" && e.currentTarget.selectionStart === page.title.length)) { e.preventDefault(); setFocusFirst(n => n + 1); } }} />
-          <EditorCtx.Provider value={env}><Editor blocks={page.blocks} autoFocusFirst={!page.title} focusFirst={focusFirst} onChange={(b: Block[]) => commit(w => updatePage(w, page.id, { blocks: b.length ? b : [mk("p")] }))} /></EditorCtx.Provider>
+          <EditorCtx.Provider value={env}>
+          {(pageDraft || (page.threads ?? []).some(t => !t.blockId && !t.resolved)) && <section className="ntn-pagecmts" aria-label="Page comments" data-testid="page-comments">
+            {(page.threads ?? []).filter(t => !t.blockId && !t.resolved).map(t => <ThreadView key={t.id} t={t} page={page} acts={acts} />)}
+            {pageDraft ? <div className="ntn-cmt"><span className="ns-av">{me[0].toUpperCase()}</span><CommentBox autoFocus onSend={t => addThread(null, t)} onCancel={() => setPageDraft(false)} /></div> : <button type="button" className="ntn-pagecmts__add" onClick={() => setPageDraft(true)}><span className="ns-av">{me[0].toUpperCase()}</span>Add a comment…</button>}
+          </section>}
+          <Editor blocks={page.blocks} autoFocusFirst={!page.title} focusFirst={focusFirst} onChange={(b: Block[]) => commit(w => updatePage(w, page.id, { blocks: b.length ? b : [mk("p")] }))} /></EditorCtx.Provider>
           {children(ws, page.id).length > 0 && <section className="ntn-subpages" aria-label="Sub-pages">{children(ws, page.id).map(c => <Link key={c.id} href={`/app/${c.id}`} className="ntn-subpage">{c.icon} {c.title || "Untitled"}</Link>)}</section>}
           {backlinks(ws, page.id).length > 0 && <section className="ntn-backlinks" data-testid="backlinks"><h4>Linked from</h4>{backlinks(ws, page.id).map(b => <Link key={b.id} href={`/app/${b.id}`}>{b.icon} {b.title || "Untitled"}</Link>)}</section>}
         </article>}
       </div>
+      {cpane && page && !page.trashed && <EditorCtx.Provider value={env}><CommentsPane page={page} acts={acts} onClose={() => { setCpane(false); setDraftBlock(null); }} onAdd={addThread} focusThread={focusThread} draftBlock={draftBlock} onCancelDraft={() => setDraftBlock(null)} onJump={jump} /></EditorCtx.Provider>}</div>
     </main>
     <input ref={fileRef} type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden data-testid="import-file" onChange={async e => { const f = e.target.files?.[0]; if (!f) return; const r = importMarkdown(ws, await f.text()); setStored(r.ws); notify(`Imported “${r.page.title}”`); open(r.page.id); e.target.value = ""; }} />
     {searching && <Search ws={ws} onClose={() => setSearching(false)} onOpen={id => { setSearching(false); open(id); }} onCreate={t => { setSearching(false); newPage(null, t); }} />}
+    {gallery !== false && <TemplateGallery initial={gallery ?? undefined} onUse={useTemplate} onClose={() => setGallery(false)} />}
     {settings && <SettingsModal name={demo ? "Demo User" : name} onClose={() => setSettings(false)} />}
     {moveOpen && page && <MoveDialog ws={ws} page={page} onPick={chooseMove} onClose={() => setMoveOpen(false)} />}
     {toast && <div className="ntn-toast" role="status" data-testid="toast">{toast}</div>}
   </div>;
 }
 
-function Home({ ws, name, open, onNew, onImport }: { ws: WS; name: string; open: (id: string) => void; onNew: () => void; onImport: () => void }) {
+function Home({ ws, name, open, onNew, onImport, onTemplate }: { ws: WS; name: string; open: (id: string) => void; onNew: () => void; onImport: () => void; onTemplate: (id: string | null) => void }) {
   const hr = new Date().getHours(); const hello = hr < 12 ? "Good morning" : hr < 18 ? "Good afternoon" : "Good evening";
   const recent = ws.recent.map(id => getPage(ws, id)).filter((p): p is Page => !!p && !p.trashed);
   const all = [...live(ws)].sort((a, b) => +new Date(b.updatedAt) - +new Date(a.updatedAt)).slice(0, 12);
@@ -139,8 +165,8 @@ function Home({ ws, name, open, onNew, onImport }: { ws: WS; name: string; open:
     <div className="nh-h">▦ Upcoming events</div>
     <div className="nh-ev"><div className="l"><i>▦</i><b>Connect AI Meeting Notes<br />with your Calendar events</b><p>Join calls, transcribe audio, and summarize meetings all in Notion.</p><a>Connect Notion Calendar</a></div>
       <div className="r"><div><small>Today<br />Oct 15</small><span><b>Team standup</b><br />9 AM · Office</span></div><div><small>Fri<br />Oct 16</small><span><b>Project check-in</b><br />10 AM · Office</span></div></div></div>
-    <div className="nh-h">▥ Featured templates</div>
-    <div className="nh-lr">{[["Life Wiki"], ["Journal"], ["To-do List"], ["Simple Budget"]].map(([t]) => <div key={t} className="nh-tp"><b>{t}</b><small>By Notion</small></div>)}</div>
+    <div className="nh-h">▥ Featured templates<button type="button" className="nh-more" onClick={() => onTemplate(null)}>Browse all</button></div>
+    <div className="nh-lr">{TEMPLATES.slice(0, 4).map(t => <button type="button" key={t.id} className="nh-tp" data-testid="template-card" onClick={() => onTemplate(t.id)}><span className="ic">{t.icon}</span><b>{t.title}</b><small>{t.blurb}</small></button>)}</div>
     <div className="nh-act"><button className="ids-btn ids-btn--outline ids-btn--sm" onClick={onImport}>Import Markdown</button></div>
   </div>;
 }

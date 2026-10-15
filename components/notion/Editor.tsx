@@ -151,6 +151,7 @@ export function Editor({ blocks, onChange, autoFocusFirst, focusFirst = 0, neste
     <button type="button" aria-label="Block menu" title="Drag to move, click to open menu" draggable onDragStart={e => { setDrag(b.id); setSel(null); e.dataTransfer.setData("text/plain", b.id); e.dataTransfer.effectAllowed = "move"; }} onDragEnd={() => { setDrag(null); setDrop(null); }} onClick={() => setMenuFor(menuFor === b.id ? null : b.id)} aria-haspopup="menu" aria-expanded={menuFor === b.id}>⋮⋮</button>
     {menuFor === b.id && <BlockMenu block={b} onClose={() => setMenuFor(null)} onTurnInto={t => onChange(turnInto(blocks, b.id, t))} onColor={(c, bg) => set(b.id, bg ? { bg: c ?? undefined } : { color: c ?? undefined })}
       onDuplicate={() => insertAfter(i, cloneBlock(b))} onDelete={() => remove(b.id)} onMove={pid => { if (env.moveBlockToPage) { env.moveBlockToPage(b, pid); onChange(blocks.length > 1 ? blocks.filter(x => x.id !== b.id) : [mk("p")]); env.notify?.("Block moved"); } }} onComment={env.onComment ? () => env.onComment!(b.id) : undefined} />}</div>;
+  const badge = (b: Block) => env.comments?.[b.id] ? <button type="button" className="ntn-cbadge" aria-label={`${env.comments[b.id]} comment${env.comments[b.id] > 1 ? "s" : ""}`} onClick={() => env.onShowComments?.(b.id)}>💬 {env.comments[b.id]}</button> : null;
   const colorStyle = (b: Block) => ({ ...(b.color ? { color: `var(--nt-${b.color})` } : {}), ...(b.bg ? { background: `var(--nt-${b.bg}-bg)` } : {}) });
   const selBlock = sel ? blocks.find(b => b.id === sel.id) : undefined;
 
@@ -185,6 +186,7 @@ export function Editor({ blocks, onChange, autoFocusFirst, focusFirst = 0, neste
           {slash?.id === b.id && <SlashMenu q={slash.q} index={slash.i} onPick={m => choose(b.id, m)} onHover={n => setSlash({ ...slash, i: n })} />}
           {mention?.id === b.id && <MentionMenu q={mention.q} index={mention.i} onPick={m => pickMention(b, m)} onHover={n => setMention({ ...mention, i: n })} />}
         </div>
+        {badge(b)}
         {b.type === "toggle" && b.open && <div className="ntn-toggle__kids"><Editor nested hint="Empty toggle. Click or drop blocks inside." blocks={b.kids?.length ? b.kids : [mk("p")]} onChange={kids => set(b.id, { kids: kids.length ? kids : [mk("p")] })} pageBlocks={pageBlocks ?? blocks} /></div>}
       </div>;
     })}
