@@ -1,0 +1,85 @@
+{
+  "name": "notion",
+  "source": "notion.com homepage look (warm neutrals #37352F on white, blue #2383E2 CTA, soft 8px radii, large friendly hero), measured 2026-10-14; original art",
+  "font": {
+    "sans": "Host Grotesk",
+    "display": "Host Grotesk",
+    "files": {
+      "Host Grotesk": "notion/HostGrotesk-Variable.woff2"
+    },
+    "mono": "ui-monospace, SFMono-Regular, Menlo, monospace",
+    "note": "Notion's UI font is a customized Inter and its serif is Lyon (proprietary, not shipped). Host Grotesk (OFL) is our lookalike: neutral grotesque, generous x-height, slightly warmer than Inter."
+  },
+  "color": {
+    "bg": "#FFFFFF",
+    "surface": "#FFFFFF",
+    "surfaceAlt": "#F7F6F3",
+    "text": "#37352F",
+    "textMuted": "#6B6A66",
+    "textSubtle": "#9B9A97",
+    "border": "#E9E9E7",
+    "borderStrong": "#37352F",
+    "danger": "#E03E3E",
+    "success": "#0F7B6C",
+    "warning": "#CB912F",
+    "onPrimary": "#FFFFFF",
+    "onAccent": "#FFFFFF",
+    "primary": "#2383E2",
+    "primaryHover": "#0F6FCC",
+    "accent": "#2383E2",
+    "accentHover": "#0F6FCC",
+    "accentSoft": "#E3F2FD",
+    "focus": "#2383E2",
+    "heroFrom": "#FFFFFF",
+    "heroMid": "#F1F6FB",
+    "heroTo": "#FBF3EC"
+  },
+  "radius": {
+    "xs": "3px",
+    "sm": "4px",
+    "md": "6px",
+    "lg": "8px",
+    "xl": "16px",
+    "pill": "9999px"
+  },
+  "space": {
+    "1": "4px",
+    "2": "8px",
+    "3": "12px",
+    "4": "16px",
+    "5": "20px",
+    "6": "24px",
+    "8": "32px",
+    "10": "40px",
+    "12": "48px",
+    "16": "64px"
+  },
+  "shadow": {
+    "sm": "0 1px 2px rgba(55,53,47,.08)",
+    "md": "0 4px 14px rgba(55,53,47,.10)",
+    "lg": "0 16px 40px rgba(55,53,47,.14)"
+  },
+  "type": {
+    "xs": "12px",
+    "sm": "14px",
+    "md": "16px",
+    "lg": "18px",
+    "xl": "24px",
+    "2xl": "32px",
+    "3xl": "44px",
+    "4xl": "56px",
+    "weightBody": 400,
+    "weightStrong": 600,
+    "weightHeading": 700,
+    "tracking": "-0.02em",
+    "lineHeight": 1.5
+  },
+  "control": {
+    "height": "44px",
+    "heightSm": "32px",
+    "borderWidth": "1px",
+    "buttonRadius": "8px",
+    "inputRadius": "6px",
+    "cardRadius": "12px"
+  }
+}
