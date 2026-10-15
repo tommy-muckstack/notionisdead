@@ -50,8 +50,8 @@ Checked against notion.com/help on 2026-10-15 (no throwaway Notion account was c
 | 24 | Trash popover | open | 4 | |
 | 25 | Database table | open | 5 | |
 | 26 | Database layouts | open | 5 | |
-| 27 | Templates | open | 3 | |
-| 28 | Comments | open | 3 | |
+| 27 | Templates | **fixed** | 3 | Home "Featured templates" cards and "Browse all" open a template gallery (Personal / Work / School, 9 original templates with a structure preview). "Use this template" creates a real page (Life Wiki also creates its sub-pages); templates use toggles, to-dos, inline databases and mentions. Content is original, written for NotionIsDead. |
+| 28 | Comments | **fixed** | 3 | Threads live on the page (`threads[]`, block-anchored or page-level). Start one from the toolbar Comment button, the block menu, ⌘⇧M, or "Add comment" in the page hover row. Comments pane (💬 in the top bar, with open count): Open / Resolved tabs, reply, edit own, resolve ✓ / reopen, delete, jump to block; blocks with open threads show a 💬 n badge. Page-level threads render under the title like Notion's discussion area. @ mentions work inside comments. Comments are not included in Markdown export (Notion only exports them in HTML). |
 | 29 | Settings tabs | open | 6 | |
 | 30 | Workspace menu | open | 6 | |
 | 31 | 404 | open | 7 | |
