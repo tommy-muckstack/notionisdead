@@ -13,3 +13,5 @@
 .ntl-su .ov{position:absolute;inset:0;background:rgba(30,30,40,.36);backdrop-filter:blur(3px)}.ntl-su .md{position:absolute;left:50%;top:91px;transform:translateX(-50%);width:490px;height:716px;box-sizing:border-box;background:#fff;border-radius:12px;box-shadow:0 8px 40px rgba(0,0,0,.2);padding:36px 0 0;display:grid;justify-items:center;align-content:start}.ntl-su .md .ntl-card{width:360px}
 @media(max-width:600px){.ntl-col,.ntl-card,.ntl-su .md .ntl-card{width:min(340px,calc(100vw - 32px))}.ntl-col{padding-top:40px}.ntl-su .md{width:calc(100vw - 24px);height:auto;padding-bottom:24px;top:30px}.ntl-su .bk{grid-template-columns:1fr}.ntl-su .sb{display:none}}
 .ntl .hint.cfg{max-width:none;text-align:center;margin:10px 30px 0}
+
+.ntl-sent{background:#f1f0ee;border-radius:8px;padding:14px;margin-top:10px;font-size:13px;line-height:18px;text-align:left}.ntl-sent b{font-weight:600}.ntl-sent p{margin:6px 0 8px}.ntl-sent .lnk{border:0;background:none;color:#2383e2;cursor:pointer;font:inherit;padding:0}.prov-note{max-width:none;margin-top:10px;text-align:center}.tos a{color:inherit}
