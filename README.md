@@ -2,7 +2,7 @@
 
 Free, open-source Notion alternative. Part of the [IsDead series](https://yourappisdead.com). Served at `https://yourappisdead.com/notionisdead`.
 
-**Status: local only** (not pushed, not deployed). Surfaces follow `templates/marketing-site.md` in `@isdead/design`: one marketing page (`/`, price comparison at `#pricing`), `/login`, and the app at `/app`.
+**Status: open source, not deployed yet**. Surfaces follow `templates/marketing-site.md` in `@isdead/design`: one marketing page (`/`, price comparison at `#pricing`), `/login`, and the app at `/app`.
 
 ## What works
 - **Pages:** nested page tree, icons, favorites, sub-pages, move-to, duplicate (deep), Trash with restore / delete forever / empty, breadcrumbs, recent pages, home screen.
