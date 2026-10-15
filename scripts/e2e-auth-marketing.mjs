@@ -20,9 +20,8 @@ await page.goto(base + "/login"); const card = page.getByTestId("login-card"); a
 await page.getByRole("link", { name: "Sign up" }).click(); assert.equal(await card.getAttribute("data-mode"), "signup"); assert.match(await page.getByRole("link", { name: "Log in" }).getAttribute("href"), /\/login$/);
 await page.goto(base + "/login?mode=signup"); assert.equal(await card.getAttribute("data-mode"), "signup"); await page.goto(base + "/login?mode=reset"); assert.equal(await card.getAttribute("data-mode"), "reset");
 assert.match(await page.locator(".tos a").first().getAttribute("href"), /\/legal/); assert.ok(await page.getByRole("link", { name: /Continue as a guest/ }).count() === 1);
-await page.goto(base + "/login"); await page.getByLabel("Email").fill("qa@example.com"); await page.getByRole("button", { name: "Continue" }).click(); await page.waitForTimeout(500);
-const after = await card.getAttribute("data-step"); const alert = await page.locator('[role="alert"], [role="status"]').allInnerTexts();
-assert.ok(after === "2" || after === "3" || alert.join(" ").includes("configured"), "link sent, or password fallback, or not-configured notice: step=" + after + " " + alert.join("|"));
+await page.goto(base + "/login"); await page.getByLabel("Email").fill("qa@example.com"); await page.getByRole("button", { name: "Continue" }).click(); assert.equal(await card.getAttribute("data-step"), "2", "email → password step"); await page.getByLabel("Password").waitFor();
+assert.equal(await page.locator(".prov button").count(), 1, "Google is the only provider button"); assert.equal(await page.locator(".prov button:disabled").count(), await page.locator(".prov button").count() * (await page.locator(".cfg").count() ? 1 : 0), "no fake disabled providers");
 // #31 404s: marketing + app + published
 for (const path of ["/zzz404", "/p/pg_doesnotexist"]) { const r = await page.goto(base + path); assert.equal(r.status(), 404, path); const t = await page.locator("body").innerText(); assert.ok(/couldn.t be found|isn.t published/.test(t) && t.includes("Back to my content"), path + " branded"); }
 await page.goto(base + "/app/pg_nope"); await page.getByRole("link", { name: "Back to my content" }).waitFor({ timeout: 5000 }); assert.ok((await page.locator("body").innerText()).includes("couldn't be found"), "app bad id branded");

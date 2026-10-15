@@ -47,26 +47,6 @@ export function authErrorMessage(e: any): string {
   if (c.includes("invalid-email")) return "That email address doesn't look right.";
   if (c.includes("popup-closed")) return "Google sign-in was closed before it finished.";
   if (c.includes("too-many-requests")) return "Too many attempts. Try again in a few minutes.";
-  if (c.includes("invalid-action-code") || c.includes("expired-action-code")) return "That sign-in link has expired or was already used. Request a new one.";
   return e?.message ?? "Something went wrong.";
 }
 
-// ---- passwordless email link (Notion-style "we emailed you a code/link") ----
-// Requires the "Email link (passwordless sign-in)" provider to be enabled on the Firebase project; otherwise
-// sendSignInLinkToEmail rejects with auth/operation-not-allowed and callers fall back to the password form.
-const LINK_EMAIL_KEY = "isdead:emailForSignIn";
-export async function sendLoginLink(config: FirebaseClientConfig, email: string, continueUrl: string) {
-  const { sendSignInLinkToEmail } = await import("firebase/auth");
-  await sendSignInLinkToEmail(await clientAuth(config), email, { url: continueUrl, handleCodeInApp: true });
-  try { localStorage.setItem(LINK_EMAIL_KEY, email); } catch { /* private mode */ }
-}
-export async function isLoginLink(config: FirebaseClientConfig, href: string) { const { isSignInWithEmailLink } = await import("firebase/auth"); return isSignInWithEmailLink(await clientAuth(config), href); }
-export const rememberedLinkEmail = () => { try { return localStorage.getItem(LINK_EMAIL_KEY) ?? ""; } catch { return ""; } };
-/** Finish a link sign-in (the link opened in this browser) and start the server session. */
-export async function completeLoginLink(config: FirebaseClientConfig, sessionUrl: string, email: string, href: string) {
-  const { signInWithEmailLink } = await import("firebase/auth");
-  const c = await signInWithEmailLink(await clientAuth(config), email, href);
-  try { localStorage.removeItem(LINK_EMAIL_KEY); } catch { /* ignore */ }
-  await exchange(sessionUrl, await c.user.getIdToken());
-}
-export const isLinkDisabled = (e: unknown) => /operation-not-allowed|admin-restricted|unauthorized-continue-uri|invalid-continue-uri/.test(String((e as { code?: string })?.code ?? ""));
