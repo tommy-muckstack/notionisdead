@@ -39,7 +39,7 @@ Checked against notion.com/help on 2026-10-15 (no throwaway Notion account was c
 | 13 | Formatting toolbar | **fixed** | 1 | Drag-selecting rendered text keeps a visible native selection and shows a floating toolbar: Turn into, B/I/U/S/code, Link (inline URL field), text colour + background, Comment (wired in PR 3). Keyboard selections in the editing textarea get the same toolbar; ⌘B/I/U/E, ⌘⇧S, ⌘K work on selections. Underline is stored as `<u>`, colours as `<font color>` / `<mark class>` so Markdown round-trips. |
 | 14 | @ mentions | **fixed** | 1 | `@` opens People (the signed-in user), Pages (filtered, inserts a `[[page]]` link with backlink) and Dates (Today/Tomorrow/Yesterday or a typed date). Rendered as chips. |
 | 15 | Block menu | **fixed** | 1 | ⋮⋮ menu: Turn into ›, Color › (text + background), Copy link to block, Duplicate (⌘D), Move to › (another page), Delete; Comment arrives in PR 3. Escape and click-away close it (shared `useDismiss` hook). The handle is draggable: drag-to-reorder with a drop indicator. |
-| 16 | Popover stacking | open | 2 | |
+| 16 | Popover stacking | **fixed** | 2 | Workspace popovers (workspace menu, Share, page actions, icon picker) share one slot, so opening one replaces another; Escape and pointer-press outside close them (shared `Popwrap` + `useDismiss`). Search, Move to and Settings dialogs also close on Escape/click-away; the database view-settings menu and the editor block menu/toolbar use the same hook, so a block menu closes when Share opens and vice-versa. |
 | 17 | Icon / cover / comment | open | 4 | |
 | 18 | Page actions menu | open | 4 | |
 | 19 | Export options | open | 4 | |
