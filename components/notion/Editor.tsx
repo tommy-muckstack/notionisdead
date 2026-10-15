@@ -67,7 +67,7 @@ export function Editor({ blocks, onChange, autoFocusFirst, focusFirst = 0, neste
     const fresh = (t: BlockType): Block[] => t === "divider" ? [mk("divider"), mk("p")] : t === "table" || t === "board" ? [mk(t, "", { db: newDb() }), mk("p")]
       : t === "toggle" ? [mk("toggle", "", { open: true, kids: [mk("p")] })] : t === "columns" ? [mk("columns", "", { cols: [[mk("p")], [mk("p")]] }), mk("p")]
       : t === "toc" ? [mk("toc"), mk("p")] : t === "page" ? [mk("page", "Untitled")] : t === "link" ? [mk("link", "")] : MEDIA.includes(t) ? [mk(t, "")] : [mk(t, "", t === "todo" ? { checked: false } : {})];
-    const ins = fresh(type);
+    const ins = m.layout ? [mk(m.layout === "board" ? "board" : "table", "", { db: newDb(m.layout) }), mk("p")] : fresh(type);
     if (type === "page") { const ref = env.createSubpage?.("Untitled"); if (!ref) { env.notify?.("Sub-pages aren't available here."); return; } ins[0] = { ...ins[0], pageId: ref.id, text: ref.title || "Untitled" }; }
     const focusTarget = type === "toggle" ? ins[0] : ins[ins.length - 1];
     if (rest === "") { onChange([...blocks.slice(0, i), ...ins.map((x, k) => k === 0 ? { ...x, id: b.id, color: b.color, bg: b.bg } : x), ...blocks.slice(i + 1)]); setPending({ id: focusTarget === ins[0] ? b.id : focusTarget.id, caret: 0 }); }

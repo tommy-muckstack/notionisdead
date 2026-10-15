@@ -85,15 +85,28 @@ describe("pages", () => {
 });
 
 describe("database blocks", () => {
-  it("round-trips a table through markdown", async () => {
+  it("round-trips a legacy-shaped table through markdown (migrating it)", async () => {
     const { blocksToMarkdown, markdownToBlocks, mk } = await import("@/lib/notion/blocks");
-    const b = mk("table", "", { db: { title: "Tasks", rows: [{ id: "a", name: "Write | pipe", status: "Done" }, { id: "b", name: "Ship", status: "In progress" }] } });
-    const back = markdownToBlocks(blocksToMarkdown([b]));
+    const b = mk("table", "", { db: { title: "Tasks", rows: [{ id: "a", name: "Write | pipe", status: "Done" }, { id: "b", name: "Ship", status: "In progress" }] } as any });
+    const md = blocksToMarkdown([b]); expect(md).toBe("**Tasks**\n\n| Name | Status |\n| --- | --- |\n| Write \\| pipe | Done |\n| Ship | In progress |\n");
+    const back = markdownToBlocks(md);
     expect(back).toHaveLength(1); expect(back[0].type).toBe("table"); expect(back[0].db?.title).toBe("Tasks");
-    expect(back[0].db?.rows.map(r => [r.name, r.status])).toEqual([["Write | pipe", "Done"], ["Ship", "In progress"]]);
+    expect(back[0].db?.rows.map(r => [r.cells.name, r.cells.status])).toEqual([["Write | pipe", "Done"], ["Ship", "In progress"]]);
   });
+  it("round-trips a typed schema (props, views, row content) through markdown", async () => {
+    const { blocksToMarkdown, markdownToBlocks, mk } = await import("@/lib/notion/blocks"); const { newDb, addProp, setCell, addView, updateView } = await import("@/lib/notion/db");
+    let d = newDb(); const due = addProp(d, "date", "Due"); d = due.db; const n = addProp(d, "number", "Estimate"); d = n.db; const tags = addProp(d, "multi", "Tags"); d = tags.db;
+    d = setCell(d, d.rows[0].id, "name", "First"); d = setCell(d, d.rows[0].id, due.prop.id, "2026-10-20/2026-10-22"); d = setCell(d, d.rows[0].id, n.prop.id, 3); d = setCell(d, d.rows[0].id, tags.prop.id, ["a", "b"]);
+    const v = addView(d, "calendar"); d = updateView(v.db, v.view.id, { dateBy: due.prop.id, filters: [{ id: "f1", prop: "status", op: "is", value: "Done" }], sorts: [{ id: "s1", prop: n.prop.id, dir: "desc" }] });
+    d = { ...d, rows: d.rows.map((r, i) => i === 0 ? { ...r, content: [mk("p", "inside the row")] } : r) };
+    const md = blocksToMarkdown([mk("table", "", { db: d })]); expect(md).toContain("| Name | Status | Due | Estimate | Tags |"); expect(md).toContain("<!-- db ");
+    const back = markdownToBlocks(md)[0].db!; expect(back.props.map(p => p.type)).toEqual(["title", "status", "date", "number", "multi"]); expect(back.views).toHaveLength(2); expect(back.views[1]).toMatchObject({ layout: "calendar", dateBy: due.prop.id }); expect(back.views[1].filters[0]).toMatchObject({ op: "is", value: "Done" });
+    expect(back.rows[0].cells).toMatchObject({ name: "First", [due.prop.id]: "2026-10-20/2026-10-22", [n.prop.id]: 3, [tags.prop.id]: ["a", "b"] }); expect(back.rows[0].content?.[0].text).toBe("inside the row");
+    expect(blocksToMarkdown(markdownToBlocks(md))).toBe(md);
+  });
+  it("parses a plain markdown table with extra columns", async () => { const { markdownToBlocks } = await import("@/lib/notion/blocks"); const b = markdownToBlocks("| Task | Owner | Status |\n| --- | --- | --- |\n| a | me | Done |\n")[0]; expect(b.type).toBe("table"); expect(b.db?.props.map(p => [p.name, p.type])).toEqual([["Task", "title"], ["Owner", "text"], ["Status", "status"]]); expect(b.db?.rows[0].cells.name).toBe("a"); });
   it("keeps the board layout marker", async () => {
     const { blocksToMarkdown, markdownToBlocks, mk, newDb } = await import("@/lib/notion/blocks");
-    expect(markdownToBlocks(blocksToMarkdown([mk("board", "", { db: newDb() })]))[0].type).toBe("board");
+    const back = markdownToBlocks(blocksToMarkdown([mk("board", "", { db: newDb("board") })]))[0]; expect(back.type).toBe("board"); expect(back.db?.views[0].layout).toBe("board");
   });
 });

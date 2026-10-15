@@ -1,9 +1,10 @@
 // Block model + markdown round-trip. Markdown is the interchange format (like Brainz notes): what you export is what you wrote.
 export type BlockType = "p" | "h1" | "h2" | "h3" | "h4" | "bullet" | "number" | "todo" | "toggle" | "quote" | "callout" | "code" | "divider"
   | "page" | "link" | "image" | "video" | "audio" | "file" | "bookmark" | "equation" | "toc" | "columns" | "table" | "board";
+import { isDefaultSchema, migrateDb, newDb as freshDb, rowTitle, cellText, STATUS_OPTIONS, did, type Db, type Layout } from "./db";
+export type { Db } from "./db";
 export type DbStatus = "Not started" | "In progress" | "Done";
 export const DB_STATUSES: DbStatus[] = ["Not started", "In progress", "Done"];
-export type Db = { title: string; rows: { id: string; name: string; status: DbStatus }[] };
 /** Notion's colour names. `color` is the text colour, `bg` the block background; both optional. */
 export const COLORS = ["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"] as const;
 export type Color = typeof COLORS[number];
@@ -18,7 +19,7 @@ export type Block = {
   /** image / video / audio / file / bookmark: where the media lives (`text` is the caption or file name) */
   url?: string;
 };
-export const newDb = (): Db => ({ title: "", rows: [0, 1, 2].map(() => ({ id: bid(), name: "", status: "Not started" as DbStatus })) });
+export const newDb = (layout: Layout = "table"): Db => freshDb(layout);
 let n = 0;
 export const bid = () => `b_${Date.now().toString(36)}${(n++).toString(36)}${Math.random().toString(36).slice(2, 5)}`;
 export const mk = (type: BlockType, text = "", extra: Partial<Block> = {}): Block => ({ id: bid(), type, text, ...extra });
@@ -26,9 +27,11 @@ export const MEDIA: BlockType[] = ["image", "video", "audio", "file", "bookmark"
 export const TEXTUAL: BlockType[] = ["p", "h1", "h2", "h3", "h4", "bullet", "number", "todo", "toggle", "quote", "callout"];
 export const isTextual = (t: BlockType) => TEXTUAL.includes(t);
 /** Fresh ids for a block tree (duplicate / paste). */
-export const cloneBlock = (b: Block): Block => ({ ...b, id: bid(), kids: b.kids?.map(cloneBlock), cols: b.cols?.map(c => c.map(cloneBlock)), db: b.db ? { ...b.db, rows: b.db.rows.map(r => ({ ...r, id: bid() })) } : undefined });
+export const cloneBlock = (b: Block): Block => ({ ...b, id: bid(), kids: b.kids?.map(cloneBlock), cols: b.cols?.map(c => c.map(cloneBlock)), db: b.db ? { ...migrateDb(b.db, b.type === "board"), rows: migrateDb(b.db, b.type === "board").rows.map(r => ({ ...r, id: did("r"), content: r.content?.map(cloneBlock) })) } : undefined });
+/** Databases saved before the typed model are upgraded in place (idempotent). */
+export const migrateBlocks = (blocks: Block[]): Block[] => blocks.map(b => ({ ...b, ...(b.type === "table" || b.type === "board" ? { db: migrateDb(b.db, b.type === "board") } : {}), kids: b.kids ? migrateBlocks(b.kids) : undefined, cols: b.cols ? b.cols.map(migrateBlocks) : undefined }));
 
-export type MenuItem = { type: BlockType; label: string; hint: string; keywords: string; prefix?: string; group: MenuGroup };
+export type MenuItem = { type: BlockType; label: string; hint: string; keywords: string; prefix?: string; group: MenuGroup; /** database items: the first view's layout */ layout?: Layout };
 export type MenuGroup = "Basic blocks" | "Media" | "Database" | "Advanced blocks";
 /** The slash menu, grouped like Notion's (Suggested shows the best matches while you type). */
 export const BLOCK_MENU: MenuItem[] = [
@@ -53,8 +56,12 @@ export const BLOCK_MENU: MenuItem[] = [
   { type: "code", label: "Code", hint: "Capture a code snippet.", keywords: "code snippet pre fence", prefix: "```", group: "Media" },
   { type: "file", label: "File", hint: "Upload or embed with a link.", keywords: "file attachment pdf upload", group: "Media" },
   { type: "bookmark", label: "Web bookmark", hint: "Save a link as a visual bookmark.", keywords: "bookmark web link url", group: "Media" },
-  { type: "table", label: "Table view", hint: "Add a database as a table.", keywords: "table view database inline", group: "Database" },
-  { type: "board", label: "Board view", hint: "Add a database as a kanban board.", keywords: "board view database kanban inline", group: "Database" },
+  { type: "table", label: "Table view", hint: "Add a database as a table.", keywords: "table view database inline", group: "Database", layout: "table" },
+  { type: "board", label: "Board view", hint: "Add a database as a kanban board.", keywords: "board view database kanban inline", group: "Database", layout: "board" },
+  { type: "table", label: "List view", hint: "Add a database as a simple list.", keywords: "list view database inline", group: "Database", layout: "list" },
+  { type: "table", label: "Calendar view", hint: "Add a database as a calendar.", keywords: "calendar view database inline date", group: "Database", layout: "calendar" },
+  { type: "table", label: "Gallery view", hint: "Add a database as a card gallery.", keywords: "gallery view database inline cards", group: "Database", layout: "gallery" },
+  { type: "table", label: "Timeline view", hint: "Add a database as a timeline.", keywords: "timeline view database inline gantt", group: "Database", layout: "timeline" },
   { type: "columns", label: "2 columns", hint: "Put blocks side by side.", keywords: "columns two side layout", group: "Advanced blocks" },
   { type: "equation", label: "Block equation", hint: "Display a standalone math equation.", keywords: "equation math latex tex formula", group: "Advanced blocks" },
   { type: "toc", label: "Table of contents", hint: "Show an outline of your page.", keywords: "toc table of contents outline", group: "Advanced blocks" },
@@ -111,14 +118,21 @@ export function reorder(blocks: Block[], id: string, to: number): Block[] {
 export const turnInto = (blocks: Block[], id: string, type: BlockType): Block[] => blocks.map(b => b.id === id ? {
   ...b, type, checked: type === "todo" ? !!b.checked : undefined,
   text: type === "divider" || type === "table" || type === "board" ? "" : b.text,
-  db: type === "table" || type === "board" ? b.db ?? newDb() : undefined,
+  db: type === "table" || type === "board" ? (b.db ? migrateDb(b.db, b.type === "board") : newDb(type)) : undefined,
   kids: type === "toggle" ? b.kids ?? [] : undefined, open: type === "toggle" ? b.open ?? true : undefined,
 } : b);
 /** Headings in reading order (table of contents). */
 export const headings = (blocks: Block[]) => blocks.filter(b => b.type === "h1" || b.type === "h2" || b.type === "h3" || b.type === "h4");
 
 // ---- markdown ----
-const dbMarkdown = (db: Db | undefined, board: boolean) => { const rows = db?.rows ?? []; const head = db?.title ? `**${db.title}**\n\n` : ""; return head + ["| Name | Status |", "| --- | --- |", ...rows.map(r => `| ${r.name.replace(/\|/g, "\\|")} | ${r.status} |`)].join("\n") + (board ? "\n<!-- board -->" : ""); };
+const esc = (s: string) => s.replace(/\|/g, "\\|").replace(/\n/g, " ");
+const dbMarkdown = (raw: Db | undefined, board: boolean) => {
+  const db = migrateDb(raw, board); const head = db.title ? `**${db.title}**\n\n` : "";
+  const table = [`| ${db.props.map(p => esc(p.name)).join(" | ")} |`, `| ${db.props.map(() => "---").join(" | ")} |`, ...db.rows.map(r => `| ${db.props.map(p => esc(p.type === "title" ? rowTitle(db, r) : p.type === "date" && typeof r.cells[p.id] === "string" ? String(r.cells[p.id]) : p.type === "checkbox" ? (r.cells[p.id] ? "yes" : "no") : p.type === "number" ? (r.cells[p.id] == null ? "" : String(r.cells[p.id])) : cellText(p, r.cells[p.id]))).join(" | ")} |`)].join("\n");
+  if (isDefaultSchema(db)) return head + table + (db.views[0].layout === "board" ? "\n<!-- board -->" : "");
+  const schema = { props: db.props, views: db.views, ...(db.active ? { active: db.active } : {}), content: Object.fromEntries(db.rows.filter(r => r.content?.length).map(r => [r.id, blocksToMarkdown(r.content!)])), ids: db.rows.map(r => r.id) };
+  return head + table + `\n<!-- db ${JSON.stringify(schema).replace(/-->/g, "--\\>")} -->`;
+};
 const colorNote = (b: Block) => (b.color || b.bg) ? `<!-- color:${b.color ?? ""}${b.bg ? ` bg:${b.bg}` : ""} -->\n` : "";
 const indent = (md: string) => md.replace(/\n$/, "");
 export function blocksToMarkdown(blocks: Block[]): string {
@@ -173,12 +187,21 @@ export function markdownToBlocks(md: string): Block[] {
     if ((m = l.match(/^!\[([^\]]*)\]\(([^)\s]*)\)\s*$/))) { flush(); push(mk("image", m[1], { url: m[2] })); continue; }
     if ((m = l.match(/^<(video|audio) src="([^"]*)"><\/\1>\s*$/))) { flush(); push(mk(m[1] as BlockType, "", { url: m[2] })); continue; }
     if ((m = l.match(/^\[(📎|🔖) ([^\]]*)\]\(([^)\s]*)\)\s*$/))) { flush(); push(mk(m[1] === "📎" ? "file" : "bookmark", m[2], { url: m[3] })); continue; }
-    if (/^\|\s*Name\s*\|\s*Status\s*\|\s*$/.test(l) && /^\|\s*-+\s*\|\s*-+\s*\|\s*$/.test(lines[i + 1] ?? "")) {
-      flush(); i += 2; const rows: Db["rows"] = [];
-      while (i < lines.length && /^\|.*\|\s*$/.test(lines[i])) { const cells = lines[i].trim().slice(1, -1).split(/(?<!\\)\|/).map(c => c.trim().replace(/\\\|/g, "|")); const st = (DB_STATUSES as string[]).includes(cells[1]) ? (cells[1] as DbStatus) : "Not started"; rows.push({ id: bid(), name: cells[0] ?? "", status: st }); i++; }
-      let board = false; if (/^<!-- board -->\s*$/.test(lines[i] ?? "")) { board = true; i++; } i--;
+    if (/^\|.*\|\s*$/.test(l) && /^\|(\s*:?-+:?\s*\|)+\s*$/.test(lines[i + 1] ?? "")) {
+      flush(); const split = (x: string) => x.trim().slice(1, -1).split(/(?<!\\)\|/).map(c => c.trim().replace(/\\\|/g, "|"));
+      const headers = split(l); i += 2; const cells: string[][] = [];
+      while (i < lines.length && /^\|.*\|\s*$/.test(lines[i])) { cells.push(split(lines[i])); i++; }
+      let board = false; let schema: { props: Db["props"]; views: Db["views"]; active?: string; content?: Record<string, string>; ids?: string[] } | null = null;
+      if (/^<!-- board -->\s*$/.test(lines[i] ?? "")) { board = true; i++; }
+      else { const sm = (lines[i] ?? "").match(/^<!-- db (.*) -->\s*$/); if (sm) { try { schema = JSON.parse(sm[1].replace(/--\\>/g, "-->")); } catch { schema = null; } i++; } }
+      i--;
       const prev = out[out.length - 1]; let title = ""; if (prev && prev.type === "p" && /^\*\*(.+)\*\*$/.test(prev.text)) { title = prev.text.slice(2, -2); out.pop(); }
-      push(mk(board ? "board" : "table", "", { db: { title, rows } })); continue;
+      let db: Db;
+      if (schema) { db = { title, props: schema.props, views: schema.views, ...(schema.active ? { active: schema.active } : {}), rows: cells.map((c, k) => ({ id: schema!.ids?.[k] ?? did("r"), cells: Object.fromEntries(schema!.props.map((p, j) => { const v = c[j] ?? ""; return [p.id, p.type === "number" ? (v === "" ? null : Number(v)) : p.type === "checkbox" ? v === "yes" : p.type === "multi" ? (v ? v.split(",").map(x => x.trim()).filter(Boolean) : []) : v]; })), ...(schema!.content?.[schema!.ids?.[k] ?? ""] ? { content: markdownToBlocks(schema!.content![schema!.ids![k]]) } : {}) })) }; }
+      else { const isDefault = headers.length === 2 && /^name$/i.test(headers[0]) && /^status$/i.test(headers[1]); const base = freshDb(board ? "board" : "table");
+        const props: Db["props"] = isDefault ? base.props : headers.map((h, j) => ({ id: j === 0 ? "name" : did("p"), name: h || `Column ${j + 1}`, type: j === 0 ? "title" : /^status$/i.test(h) ? "status" : "text", ...(/^status$/i.test(h) && j > 0 ? { options: STATUS_OPTIONS() } : {}) }));
+        db = { title, props, views: base.views, rows: cells.map(c => ({ id: did("r"), cells: Object.fromEntries(props.map((p, j) => [p.id, p.type === "status" ? ((DB_STATUSES as string[]).includes(c[j] ?? "") ? c[j] : "Not started") : (c[j] ?? "")])) })) }; }
+      push(mk(board ? "board" : "table", "", { db })); continue;
     }
     para.push(l);
   }
