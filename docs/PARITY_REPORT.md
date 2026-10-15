@@ -57,6 +57,14 @@ Checked against notion.com/help on 2026-10-15 (no throwaway Notion account was c
 | 30 | Workspace menu | **fixed** | 6 | Upgrade → pricing, Settings, Invite members → People, workspace list with ✓ and switching, **New workspace** (separate local workspace with its own starter pages), Log out. |
 | 31 | 404 | **fixed** | 7 | Marketing 404, unknown app page id and unpublished public page all say "This page couldn't be found." with **Back to my content** (→ /app). |
 
+## Hygiene pass (PR 8, not in the QA table)
+
+- **/app when signed out:** lands in the app as a guest instead of redirecting to /login. This is a deliberate product decision for every IsDead web app (2026-10-15): no login gate; sign-in is an upgrade that adopts the guest's data. Documented here as a justified exception, not a bug. The login page offers "Continue as a guest" for the reverse path.
+- **Console:** `scripts/e2e-hygiene.mjs` sweeps landing, pricing, login, help and the app (home, page with a database, sidebar, page menu, Share, comments, search, Settings) at 1280px and 390px and fails on any console error/warning or page error. Clean on this branch.
+- **390px layouts:** same script asserts no horizontal page scroll on every surface and keeps screenshots under `.shots/mobile/`. Fixes made: the phone sidebar now has a tap-to-close scrim and closes on Escape; the hero fact rows wrap instead of overflowing; the home banner wraps; database tables scroll inside the page instead of pushing it; the Share panel and page menu fit the viewport.
+- **Legacy smoke test:** `npm run shots` (production build + demo account) updated for the Export dialog and the Trash popover; it also regenerates the marketing screenshots in `public/home/`.
+- **Lint:** the repository has no ESLint config or `lint` script; `npm run typecheck` is the static check used throughout.
+
 ## Known limitations introduced by PR 1 (documented, not blocking)
 
 - Media uploads are stored as data URLs in the browser (per-user localStorage), capped at 1.5 MB per file; embeds by link have no limit. Notion stores files server-side.
