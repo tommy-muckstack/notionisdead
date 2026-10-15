@@ -19,7 +19,8 @@ import { TemplateGallery } from "./TemplateGallery";
 import { Cover, ExportDialog, HistoryDialog, ImportDialog, PageMenu, SharePop, TrashPop } from "./PageChrome";
 import { htmlToMarkdown, textToMarkdown } from "@/lib/notion/importers";
 import { restoreSnapshot, type Snapshot } from "@/lib/notion/pages";
-import { newDb, bid, mk as mkBlock, DB_STATUSES, type DbStatus } from "@/lib/notion/blocks";
+import { bid, mk as mkBlock, migrateBlocks } from "@/lib/notion/blocks";
+import { dbFromCsv, parseCsv } from "@/lib/notion/db";
 import { useSearchParams } from "next/navigation";
 import { Editor } from "./Editor";
 import { Popwrap } from "./Popwrap";
@@ -40,6 +41,8 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
   const [pop, setPop] = useState<Pop>(null); const [cpane, setCpane] = useState(false); const [draftBlock, setDraftBlock] = useState<string | null>(null); const [focusThread, setFocusThread] = useState<string | null>(null); const [pageDraft, setPageDraft] = useState(false); const [gallery, setGallery] = useState<string | null | false>(false); const [dlg, setDlg] = useState<null | "export" | "history" | "import">(null); const params = useSearchParams(); const toggle = (k: NonNullable<Pop>) => setPop(p => (p === k ? null : k)); const closePop = useCallback(() => setPop(null), []);
   const fileRef = useRef<HTMLInputElement>(null); const titleRef = useRef<HTMLInputElement>(null); const [focusFirst, setFocusFirst] = useState(0);
   useEffect(() => { if (ready && !stored) setStored(demo ? seedWorkspace() : emptyWorkspace()); }, [ready, stored, demo, setStored]);
+  // Databases saved before the typed property/view model are upgraded once, in place.
+  useEffect(() => { if (!ready || !stored) return; if (stored.pages.some(p => p.blocks.some(b => (b.type === "table" || b.type === "board") && b.db && !("props" in b.db)))) setStored(w => w ? { ...w, pages: w.pages.map(p => ({ ...p, blocks: migrateBlocks(p.blocks) })) } : w); }, [ready, stored?.pages.length]); // eslint-disable-line
   const ws = stored;
   const notify = useCallback((m: string) => { setToast(m); setTimeout(() => setToast(t => (t === m ? "" : t)), 2400); }, []);
   const commit = useCallback((f: (w: WS) => WS) => setStored(w => (w ? f(w) : w) as WS), [setStored]);
@@ -89,9 +92,7 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
   const patchPage = (patch: Parameters<typeof updatePage>[2]) => page && commit(w => updatePage(w, page.id, patch));
   const importFile = async (kind: string, f: File) => {
     const text = await f.text(); const name = f.name.replace(/\.[^.]+$/, "");
-    if (kind === "csv") { const rows = text.replace(/\r\n/g, "\n").split("\n").filter(l => l.trim()).map(l => l.match(/("([^"]|"")*"|[^,]*)(,|$)/g)?.map(c => c.replace(/,$/, "").replace(/^"|"$/g, "").replace(/""/g, '"')) ?? []); if (!rows.length) { notify("That CSV is empty."); return; }
-      const head = rows[0].map(h => h.toLowerCase()); const ni = Math.max(0, head.findIndex(h => h === "name" || h === "title")); const si = head.findIndex(h => h === "status"); const body = head.some(h => ["name", "title", "status"].includes(h)) ? rows.slice(1) : rows;
-      const db = { ...newDb(), title: name, rows: body.map(r => ({ id: bid(), name: r[ni] ?? "", status: ((DB_STATUSES as string[]).includes(r[si] ?? "") ? r[si] : "Not started") as DbStatus })) };
+    if (kind === "csv") { const rows = parseCsv(text); if (!rows.length) { notify("That CSV is empty."); return; } const db = dbFromCsv(name, rows);
       const r = createPage(ws, { title: name, blocks: [mkBlock("table", "", { db }), mkBlock("p")] }); setStored(r.ws); notify(`Imported ${db.rows.length} rows from “${f.name}”`); open(r.page.id); return; }
     const md = kind === "html" ? htmlToMarkdown(text) : textToMarkdown(text); const r = importMarkdown(ws, md); const titled = r.page.title === "Imported page" ? { ...r.ws, pages: r.ws.pages.map(x => x.id === r.page.id ? { ...x, title: name } : x) } : r.ws; setStored(titled); notify(`Imported “${r.page.title === "Imported page" ? name : r.page.title}”`); open(r.page.id);
   };

@@ -11,7 +11,7 @@ describe("html export", () => {
 });
 describe("bundles + zip", () => {
   it("markdown bundle nests sub-pages and emits CSV for databases", () => {
-    let ws = emptyWorkspace(); const a = createPage(ws, { title: "Top", blocks: [mk("table", "", { db: { title: "Tasks", rows: [{ id: "1", name: 'a "q"', status: "Done" }] } })] }); ws = a.ws; ws = createPage(ws, { title: "Kid", parentId: a.page.id }).ws;
+    let ws = emptyWorkspace(); const a = createPage(ws, { title: "Top", blocks: [mk("table", "", { db: { title: "Tasks", rows: [{ id: "1", name: 'a "q"', status: "Done" }] } as any })] }); ws = a.ws; ws = createPage(ws, { title: "Kid", parentId: a.page.id }).ws;
     const files = markdownBundle(ws, a.page, true).map(f => f.name); expect(files).toEqual(["top.md", "top-tasks.csv", "top/kid.md"]);
     expect(markdownBundle(ws, a.page, false).find(f => f.name.endsWith(".csv"))!.data).toBe('Name,Status\n"a ""q""",Done\n');
   });

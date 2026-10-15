@@ -1,6 +1,7 @@
 // Export: HTML (standalone file, also used by the public /p/<id> page), PDF (pdf-lib, text layout), zip bundles with sub-pages.
 import { blocksToMarkdown, fmtDate, inlineTokens, isIsoDate, plainText, type Block } from "./blocks";
 import { children, pageMarkdown, type Page, type Workspace } from "./pages";
+import { cellText, csvOf, migrateDb, rowTitle } from "./db";
 import { zip } from "@/lib/zip";
 
 export const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -38,7 +39,7 @@ export function blocksToHtml(blocks: Block[], o: HtmlOpts = {}): string {
       case "bookmark": out.push(`<p><a class="bookmark" href="${esc(safeUrl(b.url ?? ""))}">🔖 ${esc(b.text || b.url || "")}</a></p>`); break;
       case "equation": out.push(`<pre class="equation">${esc(b.text)}</pre>`); break;
       case "toc": out.push(`<nav class="toc">${blocks.filter(x => /^h[1-4]$/.test(x.type)).map(h => `<a class="${h.type}" href="#${h.id}">${esc(h.text)}</a>`).join("")}</nav>`); break;
-      case "table": case "board": { const rows = b.db?.rows ?? []; out.push(`${b.db?.title ? `<h3>${esc(b.db.title)}</h3>` : ""}<table><thead><tr><th>Name</th><th>Status</th></tr></thead><tbody>${rows.map(r => `<tr><td>${esc(r.name)}</td><td>${esc(r.status)}</td></tr>`).join("")}</tbody></table>`); break; }
+      case "table": case "board": { const d = migrateDb(b.db, b.type === "board"); out.push(`${d.title ? `<h3>${esc(d.title)}</h3>` : ""}<table><thead><tr>${d.props.map(p => `<th>${esc(p.name)}</th>`).join("")}</tr></thead><tbody>${d.rows.map(r => `<tr>${d.props.map(p => `<td>${esc(cellText(p, r.cells[p.id]))}</td>`).join("")}</tr>`).join("")}</tbody></table>`); break; }
       default: out.push(`<p${at}>${inlineHtml(b.text).replace(/\n/g, "<br>") || "&nbsp;"}</p>`);
     }
   }
@@ -70,7 +71,7 @@ export const slugify = (s: string) => (s || "untitled").toLowerCase().replace(/[
 export function markdownBundle(ws: Workspace, p: Page, subpages: boolean): { name: string; data: string }[] {
   const out: { name: string; data: string }[] = []; const walk = (pg: Page, dir: string) => {
     const base = dir + slugify(pg.title); out.push({ name: base + ".md", data: pageMarkdown(pg) });
-    pg.blocks.filter(b => b.type === "table" || b.type === "board").forEach((b, i) => out.push({ name: `${base}${i ? "-" + (i + 1) : ""}-${slugify(b.db?.title || "database")}.csv`, data: ["Name,Status", ...(b.db?.rows ?? []).map(r => `"${r.name.replace(/"/g, '""')}",${r.status}`)].join("\n") + "\n" }));
+    pg.blocks.filter(b => b.type === "table" || b.type === "board").forEach((b, i) => { const d = migrateDb(b.db, b.type === "board"); out.push({ name: `${base}${i ? "-" + (i + 1) : ""}-${slugify(d.title || "database")}.csv`, data: csvOf(d) }); });
     if (subpages) for (const c of children(ws, pg.id)) walk(c, base + "/");
   }; walk(p, ""); return out;
 }
@@ -98,7 +99,7 @@ export async function pagePdf(ws: Workspace, p: Page, o: ExportOpts = {}): Promi
     else if (b.type === "quote" || b.type === "callout") line("| " + t, 11, font, indent + 12, rgb(0.4, 0.4, 0.38)); else if (b.type === "code" || b.type === "equation") for (const l of b.text.split("\n")) line(l || " ", 9.5, mono, indent + 8);
     else if (b.type === "divider") { y -= 6; page.drawLine({ start: { x: M, y }, end: { x: W - M, y }, thickness: .5, color: rgb(.85, .85, .83) }); y -= 10; }
     else if (b.type === "toggle") { line("> " + t, 11, bold, indent); render(b.kids ?? [], indent + 16); } else if (b.type === "columns") for (const c of b.cols ?? []) render(c, indent);
-    else if (b.type === "page" || b.type === "link") line("> " + (b.text || "Untitled"), 11, font, indent); else if (b.type === "table" || b.type === "board") { if (b.db?.title) line(b.db.title, 13, bold, indent); for (const r of b.db?.rows ?? []) line(`${r.name || "Untitled"}  -  ${r.status}`, 10.5, font, indent + 12); }
+    else if (b.type === "page" || b.type === "link") line("> " + (b.text || "Untitled"), 11, font, indent); else if (b.type === "table" || b.type === "board") { const d = migrateDb(b.db, b.type === "board"); if (d.title) line(d.title, 13, bold, indent); for (const r of d.rows) line(`${rowTitle(d, r) || "Untitled"}  -  ${d.props.filter(p => p.type !== "title").map(p => cellText(p, r.cells[p.id])).filter(Boolean).join("  ·  ")}`, 10.5, font, indent + 12); }
     else if (["image", "video", "audio", "file", "bookmark"].includes(b.type)) { if (o.media ?? true) line(`[${b.type}] ${b.text || b.url || ""}`.slice(0, 200), 10, font, indent, rgb(.5, .5, .48)); }
     else if (b.type !== "toc") line(t || " ", 11, font, indent);
   } };
