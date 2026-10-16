@@ -7,9 +7,6 @@ import { NtMark } from "@/components/NtHome";
 import "./ntlogin.css";
 
 const G = <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden><path fill="#4285F4" d="M23 12.3c0-.8-.1-1.5-.2-2.2H12v4.2h6.2a5.3 5.3 0 01-2.3 3.5v2.9h3.7c2.2-2 3.4-5 3.4-8.4z" /><path fill="#34A853" d="M12 23.5c3.1 0 5.7-1 7.6-2.8l-3.7-2.9c-1 .7-2.3 1.1-3.9 1.1-3 0-5.5-2-6.4-4.7H1.8v3A11.5 11.5 0 0012 23.5z" /><path fill="#FBBC05" d="M5.6 14.2a6.9 6.9 0 010-4.4v-3H1.8a11.5 11.5 0 000 10.4z" /><path fill="#EA4335" d="M12 5.4c1.7 0 3.2.6 4.4 1.7l3.3-3.3A11.5 11.5 0 001.8 6.8l3.8 3A6.9 6.9 0 0112 5.4z" /></svg>;
-const MS = <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden><path fill="#f25022" d="M2 2h9.5v9.5H2z" /><path fill="#7fba00" d="M12.5 2H22v9.5h-9.5z" /><path fill="#00a4ef" d="M2 12.5h9.5V22H2z" /><path fill="#ffb900" d="M12.5 12.5H22V22h-9.5z" /></svg>;
-const Ic = ({ d }: { d: string }) => <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#111" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d={d} /></svg>;
-const off = "Not available yet in the open-source version";
 export function NtLogin({ config, demo, to, signup = false }: { config: FirebaseClientConfig | null; demo: boolean; to: string; signup?: boolean }) {
   const [mode, setMode] = useState<"signin" | "signup" | "reset">(signup ? "signup" : "signin");
   const [step, setStep] = useState<1 | 2>(1);
@@ -34,13 +31,8 @@ export function NtLogin({ config, demo, to, signup = false }: { config: Firebase
       <button className="ntl-go" disabled={busy}>{mode === "reset" ? "Email me a reset link" : step === 2 && su ? "Create account" : "Continue"}</button>
     </form>
     {err && <p role="alert" className="err">{err}</p>}{note && <p role="status" className="hint">{note}</p>}
-    {mode !== "reset" && <><div className="or"><i /><span>or continue with</span><i /></div>
-      <div className="prov">
-        <button type="button" disabled={busy || !config} onClick={google}>{G}Google</button>
-        {su ? <><button type="button" disabled title={off}>{MS}Microsoft</button><button type="button" disabled title={off}><Ic d="M12 3a4 4 0 00-4 4v2m8 0V7a4 4 0 00-4-4M5 11h14v10H5z" />ChatGPT</button></>
-          : <><button type="button" disabled title={off}><Ic d="M12 3a4 4 0 00-4 4v2m8 0V7a4 4 0 00-4-4M5 11h14v10H5z" />ChatGPT</button><button type="button" disabled title={off}><Ic d="M16 3c0 2-1.5 3.5-3.5 3.5C12.5 4.5 14 3 16 3zM12 7c2 0 3-1 4.5-1 1.5 0 2.5.7 3 1.5-2.5 1.5-2 5 .5 6-1 2.5-2.5 5.5-4.5 5.5-1 0-1.500-.5-3-.5s-2 .5-3 .5c-2.500 0-5-4-5-8 0-3 2-5 4.500-5 1.500 0 2.500 1 3 1z" />Apple</button>
-            <button type="button" disabled title={off}>{MS}Microsoft</button><button type="button" disabled title={off}><Ic d="M9 11a4 4 0 100-8 4 4 0 000 8zM2 21v-2a5 5 0 015-5h4M18 14v7M15 17h6" />Passkey</button><button type="button" disabled title={off}><Ic d="M4 21V7l8-4 8 4v14M9 21v-6h6v6" />SSO</button></>}
-      </div></>}
+    {mode !== "reset" && <><div className="or"><i /><span>or</span><i /></div>
+      <div className="prov"><button type="button" disabled={busy || !config} onClick={google}>{G}Continue with Google</button></div></>}
     <p className="sw">{su ? <>Existing user? <a href="#" onClick={e => { e.preventDefault(); setMode("signin"); setStep(1); }}>Log in</a></> : mode === "reset" ? <a href="#" onClick={e => { e.preventDefault(); setMode("signin"); setStep(1); }}>Back to log in</a> : <>New user? <a href="#" onClick={e => { e.preventDefault(); setMode("signup"); setStep(1); }}>Sign up</a>{step === 2 && <> · <a href="#" onClick={e => { e.preventDefault(); setMode("reset"); setStep(1); }}>Forgot password?</a></>}</>}</p>
     <p className="tos">By continuing, you acknowledge that you understand and agree to the <u>Terms &amp; Conditions</u> and <u>Privacy Policy</u></p>
     {!config && <p role="status" className="hint cfg">Sign-in not configured. Email and Google sign-in turn on once Firebase is set up.</p>}
