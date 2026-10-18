@@ -18,6 +18,11 @@ One PostHog project (US cloud, project **666931**) collects the hub and every Is
 | `env` | `production` \| `development` | |
 | `account_type` | `firebase` \| `guest` \| `demo` | |
 
+## Privacy
+`scrub` (the `before_send` hook in `lib/analytics/posthog.tsx`) cuts query strings and hashes from every URL property,
+masks page ids (`/app/<id>` → `/app/:id`; `/app/trash` stays), and drops the page `title` (it can be a user's page name).
+Heatmaps, web-vitals capture, autocapture and replay are off.
+
 ## Identity
 Signed-in users are identified by Firebase uid (`identify(uid, "firebase")`, from `Workspace`). Guests and the demo account
 are never identified; only `account_type` is registered. Sign-out sends `app_signed_out`, then `reset()` and re-registers the super properties.

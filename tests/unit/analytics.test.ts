@@ -5,3 +5,14 @@ describe("analytics taxonomy", () => {
   it("never puts the product name in an event name", () => { for (const e of Object.values(EVENTS)) expect(e.includes(APP.replace(/isdead$/, ""))).toBe(false); });
   it("sends the hub's super properties", () => { expect(superProps("app")).toEqual({ product: APP, surface: "app", platform: "web" }); });
 });
+import { scrub } from "@/lib/analytics/posthog";
+describe("analytics privacy", () => {
+  it("strips query strings, hashes and titles", () => {
+    const e = scrub({ event: "$pageview", properties: { $current_url: "https://yourappisdead.com/x/app?url=https://secret.example#frag", $referrer: "https://google.com/search?q=me", title: "My private doc" } });
+    expect(e.properties.$current_url).toBe("https://yourappisdead.com/x/app"); expect(e.properties.$referrer).toBe("https://google.com/search"); expect("title" in e.properties).toBe(false);
+  });
+  it("masks page ids but keeps the Trash view", () => {
+    const e = scrub({ event: "$pageview", properties: { $current_url: "https://yourappisdead.com/notionisdead/app/pg_abc123?x=1", $pathname: "/notionisdead/app/trash" } });
+    expect(e.properties.$current_url).toBe("https://yourappisdead.com/notionisdead/app/:id"); expect(e.properties.$pathname).toBe("/notionisdead/app/trash");
+  });
+});
