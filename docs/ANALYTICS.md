@@ -19,7 +19,8 @@ One PostHog project (US cloud, project **666931**) collects the hub and every Is
 | `account_type` | `firebase` \| `guest` \| `demo` | |
 
 ## Privacy
-`scrub` (the `before_send` hook in `lib/analytics/posthog.tsx`) cuts query strings and hashes from every URL property,
+`scrub` (the `before_send` hook in `lib/analytics/posthog.tsx`) cuts query strings and hashes from every URL-like property (any key ending in `url`, `referrer` or `pathname`,
+including `$session_entry_url` and the `$set` / `$set_once` copies),
 masks page ids (`/app/<id>` → `/app/:id`; `/app/trash` stays), and drops the page `title` (it can be a user's page name).
 Heatmaps, web-vitals capture, autocapture and replay are off.
 

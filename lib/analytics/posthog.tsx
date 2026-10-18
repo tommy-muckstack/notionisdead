@@ -20,10 +20,14 @@ const surfaceOf = (pathname: string): Surface => (/^\/(app)(\/|$)/.test(pathname
 // (it can be a user's own page or document name).
 // Page ids in /app/<id> are masked (the Trash view keeps its name).
 const PRIVATE_PATHS: RegExp[] = [/(\/app\/)(?!trash(?:[/?#]|$))[^/?#]+/];
-const URL_PROPS = ["$current_url", "$referrer", "$initial_current_url", "$initial_referrer", "$prev_pageview_pathname", "$pathname"];
+// Any URL-like property: the known ones plus every key ending in url/referrer/pathname ($session_entry_url carries the
+// landing URL with its query string).
+const URL_PROPS = ["$current_url", "$referrer", "$initial_current_url", "$initial_referrer", "$prev_pageview_pathname", "$pathname", "$session_entry_url", "$session_entry_referrer", "$session_entry_pathname"];
+const isUrlKey = (k: string) => URL_PROPS.includes(k) || /(url|referrer|pathname)$/i.test(k);
 const cleanUrl = (v: unknown) => { if (typeof v !== "string" || !v || v === "$direct") return v; let u = v.split(/[?#]/)[0]!; for (const re of PRIVATE_PATHS) u = u.replace(re, "$1:id"); return u; };
+const cleanObj = (o: unknown) => { if (!o || typeof o !== "object") return; const r = o as Record<string, unknown>; for (const k of Object.keys(r)) if (isUrlKey(k)) r[k] = cleanUrl(r[k]); };
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-export function scrub(e: any) { if (!e?.properties) return e; for (const k of URL_PROPS) if (k in e.properties) e.properties[k] = cleanUrl(e.properties[k]); delete e.properties.title; if (e.$set) for (const k of URL_PROPS) if (k in e.$set) e.$set[k] = cleanUrl(e.$set[k]); if (e.$set_once) for (const k of URL_PROPS) if (k in e.$set_once) e.$set_once[k] = cleanUrl(e.$set_once[k]); return e; }
+export function scrub(e: any) { if (!e?.properties) return e; cleanObj(e.properties); delete e.properties.title; cleanObj(e.properties.$set); cleanObj(e.properties.$set_once); cleanObj(e.$set); cleanObj(e.$set_once); return e; }
 
 async function client(): Promise<PH | null> {
   if (!KEY || typeof window === "undefined") return null;
