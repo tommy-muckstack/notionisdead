@@ -4,6 +4,7 @@ import type { FirebaseClientConfig } from "@/lib/isdead-auth/config";
 import { signInWithEmail, signUpWithEmail, signInWithGoogle, resetPassword, authErrorMessage } from "@/lib/isdead-auth/client";
 import { BP } from "@/lib/basepath";
 import { NtMark } from "@/components/NtHome";
+import { trackNow, EVENTS } from "@/lib/analytics";
 import "./ntlogin.css";
 
 const G = <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden><path fill="#4285F4" d="M23 12.3c0-.8-.1-1.5-.2-2.2H12v4.2h6.2a5.3 5.3 0 01-2.3 3.5v2.9h3.7c2.2-2 3.4-5 3.4-8.4z" /><path fill="#34A853" d="M12 23.5c3.1 0 5.7-1 7.6-2.8l-3.7-2.9c-1 .7-2.3 1.1-3.9 1.1-3 0-5.5-2-6.4-4.7H1.8v3A11.5 11.5 0 0012 23.5z" /><path fill="#FBBC05" d="M5.6 14.2a6.9 6.9 0 010-4.4v-3H1.8a11.5 11.5 0 000 10.4z" /><path fill="#EA4335" d="M12 5.4c1.7 0 3.2.6 4.4 1.7l3.3-3.3A11.5 11.5 0 001.8 6.8l3.8 3A6.9 6.9 0 0112 5.4z" /></svg>;
@@ -17,9 +18,9 @@ export function NtLogin({ config, demo, to, signup = false }: { config: Firebase
     if (!config) { setErr("Sign-in isn't configured on this deployment yet."); return; }
     if (mode === "reset") return run(async () => { await resetPassword(config, email); setNote("If that email has an account, a reset link is on its way."); setMode("signin"); setStep(1); });
     if (step === 1) { setStep(2); return; }
-    run(async () => { if (mode === "signup") await signUpWithEmail(config, session, email, password); else await signInWithEmail(config, session, email, password); window.location.assign(to); }); };
+    run(async () => { if (mode === "signup") { await signUpWithEmail(config, session, email, password); await trackNow(EVENTS.app_signed_up, { method: "password" }); } else { await signInWithEmail(config, session, email, password); await trackNow(EVENTS.app_signed_in, { method: "password" }); } window.location.assign(to); }); };
   const su = mode === "signup";
-  const google = () => run(async () => { await signInWithGoogle(config!, session); window.location.assign(to); });
+  const google = () => run(async () => { await signInWithGoogle(config!, session); await trackNow(EVENTS.app_signed_in, { method: "google" }); window.location.assign(to); });
   const form = <div className="ntl-card">
     <div className="ntl-mk"><NtMark s={22} /></div>
     <h1>{su ? "Notion: your AI workspace." : mode === "reset" ? "Reset your password" : "Your AI workspace."}<span>{su ? "Sign up with your work email" : mode === "reset" ? "We'll email you a reset link" : "Log in to your Notion account"}</span></h1>

@@ -12,13 +12,18 @@ import {
 } from "@/lib/notion/pages";
 import { seedWorkspace } from "@/lib/notion/seed";
 import { Editor } from "./Editor";
+import { track, trackNow, identify, resetIdentity, EVENTS } from "@/lib/analytics";
 
 const ICONS = ["📄", "📝", "📚", "🧭", "🗓️", "✅", "💡", "🎯", "🚀", "🧪", "🎨", "📌", "🏠", "💼", "📊", "🔖"];
 const download = (name: string, text: string) => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: "text/markdown" })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 1000); };
 const slug = (s: string) => (s || "untitled").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "untitled";
 
-export function Workspace({ uid, name, email, demo, view }: { uid: string; name: string; email: string; demo: boolean; view: string[] }) {
+export function Workspace({ uid, name, email, demo, guest = false, view }: { uid: string; name: string; email: string; demo: boolean; guest?: boolean; view: string[] }) {
   const router = useRouter();
+  // Signed-in users are identified by Firebase uid; guests and the demo account never are.
+  useEffect(() => { identify(uid, demo ? "demo" : guest ? "guest" : "firebase"); }, [uid, demo, guest]);
+  // Sign-out posts a form; send the event and reset identity first, then let the post go through.
+  const signOut = (e: React.FormEvent<HTMLFormElement>) => { e.preventDefault(); const f = e.currentTarget; void trackNow(EVENTS.app_signed_out).then(() => { resetIdentity(); f.submit(); }); };
   const [stored, setStored, ready] = useLocal<WS | null>(uid, "ws", null);
   const [expanded, setExpanded] = useLocal<Record<string, boolean>>(uid, "expanded", {});
   const [searching, setSearching] = useState(false); const [toast, setToast] = useState(""); const [navOpen, setNavOpen] = useState(false); const [iconOpen, setIconOpen] = useState(false); const [moveOpen, setMoveOpen] = useState(false); const [menuOpen, setMenuOpen] = useState(false); const [shareOpen, setShareOpen] = useState(false); const [wsMenu, setWsMenu] = useState(false); const [settings, setSettings] = useState(false);
@@ -32,9 +37,9 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
   const missing = ws && kind === "page" && (!page || page.trashed);
   useEffect(() => { if (ws && page && !page.trashed) { const up = breadcrumb(ws, page.id).slice(0, -1); if (up.some(p => !expanded[p.id])) setExpanded(e => ({ ...e, ...Object.fromEntries(up.map(p => [p.id, true])) })); } }, [page?.id]); // eslint-disable-line
   useEffect(() => { if (page && !page.trashed) commit(w => (w.recent[0] === page.id ? w : touchRecent(w, page.id))); }, [page?.id]); // eslint-disable-line
-  useEffect(() => { const h = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setSearching(true); } }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, []);
+  useEffect(() => { const h = (e: KeyboardEvent) => { if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") { e.preventDefault(); setSearching(true); track(EVENTS.app_search_opened, { via: "shortcut" }); } }; window.addEventListener("keydown", h); return () => window.removeEventListener("keydown", h); }, []);
   const open = useCallback((id: string) => { setNavOpen(false); router.push(`/app/${id}`); }, [router]);
-  const newPage = useCallback((parentId: string | null = null, title = "") => { if (!ws) return; const r = createPage(ws, { parentId, title }); setStored(r.ws); if (parentId) setExpanded(e => ({ ...e, [parentId]: true })); open(r.page.id); }, [ws, setStored, setExpanded, open]);
+  const newPage = useCallback((parentId: string | null = null, title = "", source: "sidebar" | "home" | "search" = "sidebar") => { if (!ws) return; const r = createPage(ws, { parentId, title }); track(EVENTS.app_page_created, { via: parentId ? "subpage" : source, nested: !!parentId }); setStored(r.ws); if (parentId) setExpanded(e => ({ ...e, [parentId]: true })); open(r.page.id); }, [ws, setStored, setExpanded, open]);
   if (!ws) return <div className="ntn-loading" role="status">Loading your workspace…</div>;
   const resolve = (t: string) => findByTitle(ws, t)?.id ?? null;
   const tops = children(ws, null); const favs = live(ws).filter(p => p.favorite); const trashed = ws.pages.filter(p => p.trashed && !getPage(ws, p.parentId)?.trashed);
@@ -46,18 +51,18 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
       <button className="ntn-node__add" aria-label={`Add a page inside ${p.title || "Untitled"}`} title="Add a page inside" onClick={() => newPage(p.id)}>＋</button></div>
       {isOpen && <Tree parentId={p.id} depth={depth + 1} />}</div>; })}</>;
 
-  const chooseMove = (id: string | null) => { if (!page) return; commit(w => movePage(w, page.id, id)); setMoveOpen(false); notify(id ? `Moved into ${getPage(ws, id)?.title || "Untitled"}` : "Moved to top level"); };
+  const chooseMove = (id: string | null) => { if (!page) return; commit(w => movePage(w, page.id, id)); track(EVENTS.app_page_moved, { to_top_level: !id }); setMoveOpen(false); notify(id ? `Moved into ${getPage(ws, id)?.title || "Untitled"}` : "Moved to top level"); };
 
   return <div className="ntn" data-testid="notion-app">
     <aside className={"ntn-side" + (navOpen ? " is-open" : "")}>
       <div className="ns-ws" role="button" tabIndex={0} onClick={() => setWsMenu(o => !o)}><span className="ns-av">{(demo ? "D" : (name || email || "N")[0]).toUpperCase()}</span><b title={email}>{demo ? "Demo's Space" : `${(name || email.split("@")[0]).split(" ")[0]}'s Space`}</b><i>⌄</i></div>
-      {wsMenu && <div className="ns-wsmenu" onMouseLeave={() => setWsMenu(false)}><div className="hd"><span className="ns-av">{(demo ? "D" : (name || email || "N")[0]).toUpperCase()}</span><span><b>{demo ? "Demo's Space" : `${(name || email.split("@")[0]).split(" ")[0]}'s Space`}</b><small>Free Plan · 1 member</small></span></div><div className="bt"><button>Upgrade</button><button onClick={() => { setSettings(true); setWsMenu(false); }}>Settings</button><button>Invite members</button></div><hr /><small className="em">{email || "demo@yourappisdead.com"}</small><button className="sel">✓ {demo ? "Demo's Space" : "My Space"}</button><button>New workspace</button><hr /><form method="post" action={`${BP}/api/session/logout`}><button>Log out</button></form></div>}
+      {wsMenu && <div className="ns-wsmenu" onMouseLeave={() => setWsMenu(false)}><div className="hd"><span className="ns-av">{(demo ? "D" : (name || email || "N")[0]).toUpperCase()}</span><span><b>{demo ? "Demo's Space" : `${(name || email.split("@")[0]).split(" ")[0]}'s Space`}</b><small>Free Plan · 1 member</small></span></div><div className="bt"><button>Upgrade</button><button onClick={() => { setSettings(true); setWsMenu(false); }}>Settings</button><button>Invite members</button></div><hr /><small className="em">{email || "demo@yourappisdead.com"}</small><button className="sel">✓ {demo ? "Demo's Space" : "My Space"}</button><button>New workspace</button><hr /><form method="post" action={`${BP}/api/session/logout`} onSubmit={signOut}><button>Log out</button></form></div>}
       <div className="ns-tabs">
         <Link className={"ns-home" + (kind === "home" ? " on" : "")} href="/app" onClick={() => setNavOpen(false)}><svg width="16" height="16" viewBox="0 0 16 16"><path d="M2.5 7.2L8 2.6l5.5 4.6V13H10V9.5H6V13H2.5z" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg>Home</Link>
         <span className="ns-ic" title="Chat"><svg width="15" height="15" viewBox="0 0 16 16"><path d="M3 3h10v7H7l-3 3v-3H3z" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg></span>
         <span className="ns-ic" title="Meetings"><svg width="15" height="15" viewBox="0 0 16 16"><rect x="3" y="2.5" width="10" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.2" /><path d="M5.5 6h5M5.5 8.5h5" stroke="currentColor" strokeWidth="1.2" /></svg></span>
         <span className="ns-ic" title="Inbox"><svg width="15" height="15" viewBox="0 0 16 16"><path d="M2.5 9l1.5-5.5h8L13.5 9v4h-11zM2.5 9h3.5l.8 1.5h2.4L10 9h3.5" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg></span>
-        <button className="ns-ic ns-search" onClick={() => setSearching(true)} data-testid="open-search" aria-label="Search"><svg width="15" height="15" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.2" fill="none" stroke="currentColor" strokeWidth="1.3" /><path d="M10.2 10.2L13.5 13.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg></button>
+        <button className="ns-ic ns-search" onClick={() => { setSearching(true); track(EVENTS.app_search_opened, { via: "button" }); }} data-testid="open-search" aria-label="Search"><svg width="15" height="15" viewBox="0 0 16 16"><circle cx="7" cy="7" r="4.2" fill="none" stroke="currentColor" strokeWidth="1.3" /><path d="M10.2 10.2L13.5 13.5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg></button>
       </div>
       <div className="ns-setup"><span>Set up your workspace</span><i><u /></i></div>
       {favs.length > 0 && <><div className="ntn-label">Favorites</div>{favs.map(p => <Link key={p.id} href={`/app/${p.id}`} className={"ntn-node__link ntn-fav" + (page?.id === p.id ? " on" : "")} onClick={() => setNavOpen(false)}><span>{p.icon}</span><span className="ntn-node__t">{p.title || "Untitled"}</span></Link>)}</>}
@@ -70,27 +75,27 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
       <span className="ntn-navbtn ns-row"><span>▥ Library</span></span>
       <span className="ntn-navbtn ns-row"><span>? Help</span></span>
       <Link className={"ntn-navbtn" + (kind === "trash" ? " on" : "")} href="/app/trash" onClick={() => setNavOpen(false)}><span>🗑 Trash</span>{trashed.length > 0 && <em>{trashed.length}</em>}</Link>
-      <div className="ns-foot"><span className="ns-chat">New chat <kbd>Ctrl+O</kbd></span><span className="ns-fi" /><span className="ns-fi b" /><form method="post" action={`${BP}/api/session/logout`}><button className="ns-out" aria-label="Sign out" title="Sign out">⏻</button></form></div>
+      <div className="ns-foot"><span className="ns-chat">New chat <kbd>Ctrl+O</kbd></span><span className="ns-fi" /><span className="ns-fi b" /><form method="post" action={`${BP}/api/session/logout`} onSubmit={signOut}><button className="ns-out" aria-label="Sign out" title="Sign out">⏻</button></form></div>
     </aside>
     <main className="ntn-main">
       <header className={"ntn-top" + (kind === "home" ? " is-home" : "")}><button className="ntn-burger" aria-label="Open sidebar" onClick={() => setNavOpen(o => !o)}>☰</button>
         <nav className="ntn-crumbs" aria-label="Breadcrumb">{page ? breadcrumb(ws, page.id).map((p, i, a) => <span key={p.id}>{i > 0 && <i>/</i>}<Link href={`/app/${p.id}`}>{p.icon} {p.title || "Untitled"}</Link></span>) : <span>{kind === "trash" ? "🗑️ Trash" : "Home"}</span>}</nav>
         {page && !page.trashed && <div className="ntn-top__actions">
           <span className="ntn-edited" title={`${wordCount(page)} words`}>Edited just now</span>
-          <div className="ntn-popwrap"><button className="ntn-sharebtn" aria-haspopup="dialog" aria-expanded={shareOpen} onClick={() => setShareOpen(o => !o)}>🔒︎ Share</button>{shareOpen && <SharePop name={demo ? "Demo User" : name} email={email} onClose={() => setShareOpen(false)} onCopy={() => { navigator.clipboard?.writeText(location.href); setShareOpen(false); notify("Link copied"); }} />}</div>
-          <button className="iconbtn" aria-label="Copy link" onClick={() => { navigator.clipboard?.writeText(location.href); notify("Link copied"); }}>🔗︎</button>
-          <button className="iconbtn" aria-pressed={page.favorite} aria-label={page.favorite ? "Remove from favorites" : "Add to favorites"} onClick={() => commit(w => toggleFavorite(w, page.id))}>{page.favorite ? "★" : "☆"}</button>
+          <div className="ntn-popwrap"><button className="ntn-sharebtn" aria-haspopup="dialog" aria-expanded={shareOpen} onClick={() => setShareOpen(o => !o)}>🔒︎ Share</button>{shareOpen && <SharePop name={demo ? "Demo User" : name} email={email} onClose={() => setShareOpen(false)} onCopy={() => { navigator.clipboard?.writeText(location.href); setShareOpen(false); notify("Link copied"); track(EVENTS.app_shared, { method: "share_menu" }); }} />}</div>
+          <button className="iconbtn" aria-label="Copy link" onClick={() => { navigator.clipboard?.writeText(location.href); notify("Link copied"); track(EVENTS.app_shared, { method: "copy_link" }); }}>🔗︎</button>
+          <button className="iconbtn" aria-pressed={page.favorite} aria-label={page.favorite ? "Remove from favorites" : "Add to favorites"} onClick={() => { commit(w => toggleFavorite(w, page.id)); track(EVENTS.app_page_favorited, { on: !page.favorite }); }}>{page.favorite ? "★" : "☆"}</button>
           <div className="ntn-popwrap"><button className="iconbtn" aria-label="Page actions" aria-haspopup="menu" aria-expanded={menuOpen} onClick={() => setMenuOpen(o => !o)}>•••</button>
             {menuOpen && <div className="ntn-menu ntn-menu--right" role="menu" onMouseLeave={() => setMenuOpen(false)}>
-              <button role="menuitem" onClick={() => { const r = duplicatePage(ws, page.id); setStored(r.ws); setMenuOpen(false); notify("Page duplicated"); open(r.page.id); }}>Duplicate</button>
+              <button role="menuitem" onClick={() => { const r = duplicatePage(ws, page.id); setStored(r.ws); track(EVENTS.app_page_duplicated); setMenuOpen(false); notify("Page duplicated"); open(r.page.id); }}>Duplicate</button>
               <button role="menuitem" onClick={() => { setMoveOpen(true); setMenuOpen(false); }}>Move to…</button>
-              <button role="menuitem" onClick={() => { download(`${slug(page.title)}.md`, pageMarkdown(page)); setMenuOpen(false); notify("Exported Markdown"); }}>Export as Markdown</button>
-              <div className="ntn-menu__sep" /><button role="menuitem" className="is-danger" onClick={() => { commit(w => trashPage(w, page.id)); setMenuOpen(false); notify("Moved to Trash"); router.push("/app"); }}>Move to Trash</button></div>}</div></div>}
+              <button role="menuitem" onClick={() => { download(`${slug(page.title)}.md`, pageMarkdown(page)); track(EVENTS.app_page_exported, { format: "markdown" }); setMenuOpen(false); notify("Exported Markdown"); }}>Export as Markdown</button>
+              <div className="ntn-menu__sep" /><button role="menuitem" className="is-danger" onClick={() => { commit(w => trashPage(w, page.id)); track(EVENTS.app_page_trashed); setMenuOpen(false); notify("Moved to Trash"); router.push("/app"); }}>Move to Trash</button></div>}</div></div>}
       </header>
       <div className="ntn-scroll">
         {kind === "home" && <div className="ns-banner" role="note"><span>◌ Home is getting an update in our new sidebar redesign. Opt in to keep your pages, Notion AI, and meetings within reach.</span><a>Learn more</a><i>✕</i></div>}
-        {kind === "home" && <Home ws={ws} name={demo ? "there" : (name || email.split("@")[0])} open={open} onNew={() => newPage(null)} onImport={() => fileRef.current?.click()} />}
-        {kind === "trash" && <Trash ws={ws} trashed={trashed} onRestore={id => { commit(w => restorePage(w, id)); notify("Restored"); }} onDelete={id => { commit(w => deleteForever(w, id)); notify("Deleted forever"); }} onEmpty={() => { commit(emptyTrash); notify("Trash emptied"); }} />}
+        {kind === "home" && <Home ws={ws} name={demo ? "there" : (name || email.split("@")[0])} open={open} onNew={() => newPage(null, "", "home")} onImport={() => fileRef.current?.click()} />}
+        {kind === "trash" && <Trash ws={ws} trashed={trashed} onRestore={id => { commit(w => restorePage(w, id)); track(EVENTS.app_page_restored); notify("Restored"); }} onDelete={id => { commit(w => deleteForever(w, id)); track(EVENTS.app_page_deleted); notify("Deleted forever"); }} onEmpty={() => { commit(emptyTrash); track(EVENTS.app_trash_emptied, { count: trashed.length }); notify("Trash emptied"); }} />}
         {missing && <div className="ntn-empty"><h2 className="ids-h2">This page isn't here</h2><p className="ids-muted">It may have been moved to the Trash.</p><Link className="ids-btn ids-btn--outline" href="/app">Back home</Link></div>}
         {page && !page.trashed && <article className="ntn-page" key={page.id} data-testid="page">
           <div className="ntn-popwrap ntn-iconwrap"><button className={"ntn-icon" + (page.icon === "📄" ? " is-def" : "")} aria-label="Change icon" onClick={() => setIconOpen(o => !o)}>{page.icon === "📄" ? "☺ Add icon" : page.icon}</button>
@@ -103,8 +108,8 @@ export function Workspace({ uid, name, email, demo, view }: { uid: string; name:
         </article>}
       </div>
     </main>
-    <input ref={fileRef} type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden data-testid="import-file" onChange={async e => { const f = e.target.files?.[0]; if (!f) return; const r = importMarkdown(ws, await f.text()); setStored(r.ws); notify(`Imported “${r.page.title}”`); open(r.page.id); e.target.value = ""; }} />
-    {searching && <Search ws={ws} onClose={() => setSearching(false)} onOpen={id => { setSearching(false); open(id); }} onCreate={t => { setSearching(false); newPage(null, t); }} />}
+    <input ref={fileRef} type="file" accept=".md,.markdown,.txt,text/markdown,text/plain" hidden data-testid="import-file" onChange={async e => { const f = e.target.files?.[0]; if (!f) return; const r = importMarkdown(ws, await f.text()); setStored(r.ws); track(EVENTS.app_page_imported, { format: "markdown", blocks: r.page.blocks.length }); notify(`Imported “${r.page.title}”`); open(r.page.id); e.target.value = ""; }} />
+    {searching && <Search ws={ws} onClose={() => setSearching(false)} onOpen={id => { setSearching(false); open(id); }} onCreate={t => { setSearching(false); newPage(null, t, "search"); }} />}
     {settings && <SettingsModal name={demo ? "Demo User" : name} onClose={() => setSettings(false)} />}
     {moveOpen && page && <MoveDialog ws={ws} page={page} onPick={chooseMove} onClose={() => setMoveOpen(false)} />}
     {toast && <div className="ntn-toast" role="status" data-testid="toast">{toast}</div>}
